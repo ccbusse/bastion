@@ -26,7 +26,7 @@ RUN npm run build \
 # ---------- Server bauen (C#, .NET 10) ----------
 # Das SDK-Image dient nur zum Kompilieren. Der Server wird "self-contained" veröffentlicht (Laufzeit im Paket) und läuft
 # auf demselben Debian-Basisimage wie Datenbank und Reverse-Proxy; Microsoft bietet für .NET 10 keine Debian-Images an.
-FROM mcr.microsoft.com/dotnet/sdk:10.0-noble@sha256:fe0fd4e93bd2fbb47c883b7a6369e5c8d3db8bf01cdc5981f6ee35fbdf3ff4fb AS server-build
+FROM mcr.microsoft.com/dotnet/sdk:10.0-noble@sha256:bef136a371963aaa46ec97882845ef6f54dec15728bb4b128b1c2a400ffbc9b4 AS server-build
 ENV DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_NOLOGO=1
 WORKDIR /build/server
 COPY server/global.json server/Directory.Build.props ./
