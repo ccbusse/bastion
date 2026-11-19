@@ -7,6 +7,8 @@ Neue Einträge kommen unter *Unveröffentlicht*; `scripts/release.sh X.Y.Z` mach
 
 ## [Unveröffentlicht]
 
+## [2.5.0] – 2026-11-19
+
 ### Geändert
 - Bastion richtet sich ausdrücklich an Unternehmen **und** private Nutzer (Familie, Haushalt, Verein, nur für sich). Untertitel der Anmeldeseite und Einstieg der Hilfe entsprechend angepasst.
 - README auf Englisch (`README.md`), die deutsche Fassung liegt in `README.de.md`.
