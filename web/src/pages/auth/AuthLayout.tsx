@@ -20,6 +20,33 @@ const STARS = (() => {
   }));
 })();
 
+/**
+ * Festung am Horizont. Die Zeichenfläche ist sehr breit (4800 × 420): Auf breiten Bildschirmen zeigt sich mehr Mauer,
+ * auf schmalen fallen die äußeren Türme weg; die Höhe wird bis zu einem Seitenverhältnis von gut 11:1 nie beschnitten.
+ * Mitte bei x = 2400 (Bergfried), Türme symmetrisch nach außen niedriger.
+ */
+const FORT_W = 4800;
+const FORT_MID = FORT_W / 2;
+const MERLON = 15;
+const MERLON_GAP = 11;
+const TOWERS: { offset: number; width: number; top: number; window?: boolean }[] = [
+  { offset: 0, width: 320, top: 40 },
+  { offset: 265, width: 110, top: 110, window: true },
+  { offset: 525, width: 90, top: 150, window: true },
+  { offset: 860, width: 80, top: 168 },
+  { offset: 1250, width: 90, top: 150, window: true },
+  { offset: 1700, width: 80, top: 172 },
+  { offset: 2150, width: 90, top: 160, window: true },
+];
+const TOWER_SHAPES = TOWERS.flatMap((t) => (t.offset === 0 ? [FORT_MID] : [FORT_MID - t.offset, FORT_MID + t.offset]).map((cx) => ({ ...t, x: cx - t.width / 2 })));
+
+/** Zinnen genau über die Turmbreite verteilt: außen immer eine volle Zinne, gleichmäßige Lücken dazwischen. */
+function merlons(x: number, width: number) {
+  const count = Math.max(2, Math.round((width + MERLON_GAP) / (MERLON + MERLON_GAP)));
+  const step = (width - MERLON) / (count - 1);
+  return Array.from({ length: count }, (_, i) => x + i * step);
+}
+
 /** Szene über die ganze Fläche: Nachthimmel, Morgenlicht und die Festung am Horizont. Rein dekorativ. */
 function Scene() {
   return (
@@ -33,31 +60,29 @@ function Scene() {
         />
       ))}
       <div className="auth-dawn absolute bottom-[10vh] left-1/2 h-[560px] w-[1400px] max-w-[200vw] -translate-x-1/2 rounded-full" />
-      <svg viewBox="0 0 1440 420" preserveAspectRatio="xMidYMax slice" className="absolute inset-x-0 bottom-0 h-[38vh] min-h-[220px] max-h-[420px] w-full">
+      <svg viewBox={`0 0 ${FORT_W} 420`} preserveAspectRatio="xMidYMax slice" className="absolute inset-x-0 bottom-0 h-[38vh] min-h-[220px] max-h-[420px] w-full">
         <defs>
-          <pattern id="auth-cren" width="26" height="16" patternUnits="userSpaceOnUse">
-            <rect width="15" height="16" fill="#05080f" />
+          {/* Zinnen der durchgehenden Mauer, an der Mitte ausgerichtet */}
+          <pattern id="auth-cren" x={FORT_MID - MERLON / 2} width={MERLON + MERLON_GAP} height="16" patternUnits="userSpaceOnUse">
+            <rect width={MERLON} height="16" fill="#05080f" />
           </pattern>
         </defs>
         <g fill="#05080f">
-          <rect x="0" y="226" width="1440" height="194" />
-          <rect x="0" y="210" width="1440" height="16" fill="url(#auth-cren)" />
-          <rect x="150" y="150" width="90" height="270" />
-          <rect x="150" y="134" width="90" height="16" fill="url(#auth-cren)" />
-          <rect x="1200" y="150" width="90" height="270" />
-          <rect x="1200" y="134" width="90" height="16" fill="url(#auth-cren)" />
-          <rect x="400" y="110" width="110" height="310" />
-          <rect x="400" y="94" width="110" height="16" fill="url(#auth-cren)" />
-          <rect x="930" y="110" width="110" height="310" />
-          <rect x="930" y="94" width="110" height="16" fill="url(#auth-cren)" />
-          <rect x="560" y="40" width="320" height="380" />
-          <rect x="560" y="24" width="320" height="16" fill="url(#auth-cren)" />
+          <rect x="0" y="226" width={FORT_W} height="194" />
+          <rect x="0" y="210" width={FORT_W} height="16" fill="url(#auth-cren)" />
+          {TOWER_SHAPES.map((t) => (
+            <g key={t.x}>
+              <rect x={t.x} y={t.top} width={t.width} height={420 - t.top} />
+              {merlons(t.x, t.width).map((mx) => (
+                <rect key={mx} x={mx} y={t.top - 16} width={MERLON} height="16" />
+              ))}
+            </g>
+          ))}
         </g>
         <g fill="#ecbb45" fillOpacity="0.85">
-          <rect x="187" y="190" width="16" height="26" rx="8" />
-          <rect x="1237" y="190" width="16" height="26" rx="8" />
-          <rect x="447" y="160" width="16" height="26" rx="8" />
-          <rect x="977" y="160" width="16" height="26" rx="8" />
+          {TOWER_SHAPES.filter((t) => t.window).map((t) => (
+            <rect key={t.x} x={t.x + t.width / 2 - 8} y={t.top + 40} width="16" height="26" rx="8" />
+          ))}
         </g>
       </svg>
     </div>

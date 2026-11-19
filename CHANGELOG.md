@@ -7,6 +7,9 @@ Neue Einträge kommen unter *Unveröffentlicht*; `scripts/release.sh X.Y.Z` mach
 
 ## [Unveröffentlicht]
 
+### Behoben
+- Anmeldeseite: Auf breiten Bildschirmen (z. B. 2K) waren die Türme der Festung oben abgeschnitten. Die Silhouette ist jetzt breiter angelegt, zeigt auf breiten Bildschirmen mehr Mauer statt sie zu beschneiden, und jeder Turm hat volle Zinnen.
+
 ## [2.5.0] – 2026-11-19
 
 ### Geändert
