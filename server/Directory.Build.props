@@ -1,0 +1,9 @@
+<Project>
+  <!-- Gemeinsame Einstellungen für Server und Tests -->
+  <PropertyGroup>
+    <!-- Paketversionen in packages.lock.json festhalten; die CI stellt im Modus locked-mode wieder her -->
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <!-- Analysen des SDK für Sicherheit und Zuverlässigkeit -->
+    <AnalysisLevel>latest</AnalysisLevel>
+  </PropertyGroup>
+</Project>

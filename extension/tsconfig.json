@@ -1,0 +1,39 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "resolveJsonModule": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "types": [
+      "vite/client",
+      "chrome",
+      "node"
+    ],
+    "paths": {
+      "hash-wasm": [
+        "./node_modules/hash-wasm"
+      ]
+    }
+  },
+  "include": [
+    "src",
+    "vite.config.ts",
+    "../web/src/lib/crypto",
+    "../web/src/lib/items.ts",
+    "../web/src/lib/totp.ts",
+    "../web/src/lib/types.ts"
+  ]
+}

@@ -1,0 +1,154 @@
+name: bastion
+
+# Fertige, signierte Images aus der GitHub Container Registry (Version: BASTION_VERSION in .env, Standard siehe unten).
+# Diese Datei braucht nur eine .env daneben (Vorlage: .env.example, oder automatisch mit install.sh, siehe README).
+# Selbst bauen (Entwicklung): docker compose -f compose.yml -f compose.build.yml up -d --build
+
+services:
+  db:
+    # Debian-Variante (glibc): Sortierung und Locale-Verhalten wie auf üblichen Linux-Servern, keine musl-Besonderheiten
+    image: postgres:17-trixie@sha256:0d938e975177bef9f1f61f3f9dbcf2e0aa0a139568f66d3415ed8892eb97f6ac
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: bastion
+      POSTGRES_USER: bastion
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD fehlt in .env}
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bastion -d bastion"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [backend]
+    # Nur die Rechte, die der Start (Rechte am Datenverzeichnis setzen, Wechsel zum Benutzer postgres) braucht
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID]
+    read_only: true
+    tmpfs: ["/tmp:size=64m", "/var/run/postgresql:size=8m"]
+    security_opt: ["no-new-privileges:true"]
+    # Obergrenzen: Ein überlasteter Dienst reißt nicht den ganzen Host mit (Werte in .env anpassbar)
+    mem_limit: ${DB_MEMORY_LIMIT:-1g}
+    pids_limit: 400
+
+  # Einmaliger Dienst: Migrationen mit dem Eigentümer-Konto, danach Einrichtung des eingeschränkten App-Kontos.
+  # Das Eigentümer-Passwort gelangt so nie in den laufenden Anwendungsprozess.
+  migrate:
+    image: ${BASTION_REGISTRY:-ghcr.io/ccbusse}/bastion:${BASTION_VERSION:-2.4.1}
+    restart: "no"
+    command: ["/app/Bastion.Server", "migrate"]
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://bastion:${POSTGRES_PASSWORD}@db:5432/bastion
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?APP_DB_PASSWORD fehlt in .env}
+    networks: [backend]
+    read_only: true
+    tmpfs: ["/tmp:size=64m"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 512m
+    pids_limit: 200
+
+  bastion:
+    image: ${BASTION_REGISTRY:-ghcr.io/ccbusse}/bastion:${BASTION_VERSION:-2.4.1}
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      # Eingeschränktes Konto: nur Datenzugriff, kann Audit-Log und Trigger nicht verändern
+      DATABASE_URL: postgresql://bastion_app:${APP_DB_PASSWORD:?APP_DB_PASSWORD fehlt in .env}@db:5432/bastion
+      APP_SECRET: ${APP_SECRET:?APP_SECRET fehlt in .env}
+      PUBLIC_URL: ${PUBLIC_URL:-https://localhost}
+      COOKIE_SECURE: "true"
+      TRUST_PROXY: "1"
+      SESSION_IDLE_MINUTES: ${SESSION_IDLE_MINUTES:-30}
+      SESSION_MAX_HOURS: ${SESSION_MAX_HOURS:-12}
+      INVITE_VALIDITY_HOURS: ${INVITE_VALIDITY_HOURS:-72}
+      TRASH_RETENTION_DAYS: ${TRASH_RETENTION_DAYS:-30}
+      INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD:-}
+      HIBP_ENABLED: ${HIBP_ENABLED:-true}
+    volumes:
+      # Ziel "Ordner / Netzlaufwerk" des automatischen Notfall-Backup-Exports (Standard: Docker-Volume)
+      - ${EMERGENCY_BACKUP_PATH:-emergency-backup}:/backup
+    networks: [backend, frontend]
+    read_only: true
+    tmpfs: ["/tmp:size=64m"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: ${BASTION_MEMORY_LIMIT:-1g}
+    pids_limit: 500
+
+  # Automatisches Datenbank-Backup: täglich pg_dump, verschlüsselt für BACKUP_AGE_RECIPIENTS (öffentliche age-Schlüssel).
+  # Der Dienst kann seine eigenen Backups nicht entschlüsseln; der private Schlüssel liegt offline beim Betreiber.
+  # Befehle: docker compose run --rm backup list | now | keygen  ·  Wiederherstellung siehe README.
+  backup:
+    image: ${BASTION_REGISTRY:-ghcr.io/ccbusse}/bastion-backup:${BASTION_VERSION:-2.4.1}
+    restart: unless-stopped
+    init: true
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGHOST: db
+      PGUSER: bastion
+      PGDATABASE: bastion
+      PGPASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD fehlt in .env}
+      BACKUP_AGE_RECIPIENTS: ${BACKUP_AGE_RECIPIENTS:-}
+      BACKUP_TIME: ${BACKUP_TIME:-02:30}
+      BACKUP_KEEP: ${BACKUP_KEEP:-14}
+      TZ: ${TZ:-Europe/Berlin}
+    volumes:
+      # Ziel der Backups (Standard: Docker-Volume). Besser: eigener Pfad auf einem anderen Datenträger oder einer NAS-Freigabe.
+      - ${BACKUP_PATH:-db-backup}:/backups
+    networks: [backend]
+    read_only: true
+    tmpfs: ["/tmp:size=16m"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 512m
+    pids_limit: 100
+
+  caddy:
+    # Eigenes Image: offizielles Caddy-Programm auf Debian 13, läuft ohne Root-Rechte (siehe caddy/Dockerfile)
+    image: ${BASTION_REGISTRY:-ghcr.io/ccbusse}/bastion-caddy:${BASTION_VERSION:-2.4.1}
+    restart: unless-stopped
+    depends_on: [bastion]
+    read_only: true
+    tmpfs: ["/tmp:size=16m"]
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    environment:
+      BASTION_DOMAIN: ${BASTION_DOMAIN:-localhost}
+      # Ziel der HTTP→HTTPS-Weiterleitung (Ursprung, inklusive abweichendem HTTPS-Port)
+      PUBLIC_URL: ${PUBLIC_URL:-https://localhost}
+      ACME_EMAIL: ${ACME_EMAIL:-}
+    volumes:
+      # Das Caddyfile steckt im Image. Eigenes (z. B. für eigene Zertifikate): Datei neben compose.yml anlegen und diese Zeile einkommentieren
+      # - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks: [frontend]
+    # Ports unter 1024 ohne Capability: nur im Netz-Namensraum dieses Containers
+    sysctls:
+      net.ipv4.ip_unprivileged_port_start: 0
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 256m
+    pids_limit: 200
+
+networks:
+  backend:
+    internal: true
+  frontend:
+
+volumes:
+  db-data:
+  emergency-backup:
+  db-backup:
+  caddy-data:
+  caddy-config:

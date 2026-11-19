@@ -1,0 +1,4 @@
+{
+  "extDescription": { "message": "Zugriff auf Ihren Bastion-Tresor: Einträge suchen, kopieren und Anmeldedaten auf Klick ausfüllen." },
+  "cmdFill": { "message": "Anmeldedaten für die aktuelle Seite ausfüllen" }
+}

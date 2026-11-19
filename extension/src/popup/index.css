@@ -1,0 +1,53 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-brand-50: #f3f5fa;
+  --color-brand-100: #e5e9f3;
+  --color-brand-200: #c7d0e4;
+  --color-brand-300: #9babcd;
+  --color-brand-400: #6c81af;
+  --color-brand-500: #4b6091;
+  --color-brand-600: #3b4d77;
+  --color-brand-700: #2e3f66;
+  --color-brand-800: #263352;
+  --color-brand-900: #1f2a44;
+  --color-brand-950: #141b2d;
+  --color-gold-300: #f3d184;
+  --color-gold-400: #ecbb45;
+  --color-gold-500: #e0a526;
+  --color-gold-600: #c08a16;
+  --font-sans: 'Manrope Variable', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, 'Cascadia Code', Consolas, monospace;
+}
+
+html,
+body {
+  width: 370px;
+  margin: 0;
+}
+
+body {
+  @apply bg-slate-50 text-slate-800 antialiased dark:bg-[#0b1120] dark:text-slate-200;
+  min-height: 540px;
+}
+
+:focus-visible {
+  @apply outline-2 outline-offset-2 outline-gold-500;
+}
+
+.scrollbar-thin {
+  scrollbar-width: thin;
+}
+
+/*
+ * Aufgeklappte Liste der Bereichsauswahl: Chrome zeichnet sie unter Windows als eigenes Fenster mit hellem Hintergrund,
+ * die Optionen erben aber die weiße Schrift des Feldes. Deshalb Farben der Optionen fest vorgeben.
+ */
+.scope-select option {
+  background-color: #141b2d;
+  color: #e5e9f3;
+}
+.scope-select option:checked {
+  background-color: #2e3f66;
+  color: #ffffff;
+}

@@ -1,0 +1,78 @@
+# Automatische Update-Pull-Requests für Abhängigkeiten.
+# Sicherheitsupdates kommen sofort, übrige Updates gesammelt einmal pro Woche.
+version: 2
+updates:
+  # Server (C#): NuGet-Pakete inkl. packages.lock.json
+  - package-ecosystem: nuget
+    directory: /server
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    groups:
+      nuget-minor-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: npm
+    directories: ["/web", "/extension"]
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    ignore:
+      # Typen passend zur Node-Laufzeit (24 LTS) halten
+      - dependency-name: "@types/node"
+        update-types: [version-update:semver-major]
+    groups:
+      npm-minor-patch:
+        update-types: [minor, patch]
+
+  # Basis-Images der Dockerfiles (per Digest fixiert). Nur neue Digests bzw. Minor-Versionen:
+  # Wechsel der Hauptversion von Node (ungerade Versionen sind kein LTS), .NET und Debian werden bewusst geplant.
+  # PostgreSQL (Basis des Backup-Images) bleibt auf derselben Hauptversion wie der Dienst "db" in compose.yml:
+  # pg_dump/pg_restore passend zum Server; ein Wechsel geht nur zusammen mit dem Upgrade der Datenbank.
+  - package-ecosystem: docker
+    directories: ["/", "/caddy", "/backup"]
+    schedule:
+      interval: weekly
+      day: monday
+    ignore:
+      - dependency-name: node
+        update-types: [version-update:semver-major]
+      - dependency-name: dotnet/sdk
+        update-types: [version-update:semver-major]
+      - dependency-name: debian
+        update-types: [version-update:semver-major]
+      - dependency-name: postgres
+        update-types: [version-update:semver-major]
+
+  # Caddy (aus dem Quellcode gebaut): Go-Module in caddy/go.mod. Keine neue Caddy-Hauptversion ohne Prüfung.
+  - package-ecosystem: gomod
+    directory: /caddy
+    schedule:
+      interval: weekly
+      day: monday
+    ignore:
+      - dependency-name: github.com/caddyserver/caddy/v2
+        update-types: [version-update:semver-major]
+    groups:
+      go-minor-patch:
+        update-types: [minor, patch]
+
+  # Images in compose.yml (PostgreSQL; per Digest fixiert). Keine Hauptversionen:
+  # Ein PostgreSQL-Major-Upgrade braucht pg_upgrade bzw. Dump/Restore des Datenverzeichnisses.
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    ignore:
+      - dependency-name: postgres
+        update-types: [version-update:semver-major]
+
+  # Die GitHub Actions der CI (per Commit-SHA fixiert)
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday

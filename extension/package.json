@@ -1,0 +1,33 @@
+{
+  "name": "bastion-extension",
+  "version": "2.4.1",
+  "private": true,
+  "description": "Bastion browser extension (read-only vault access and autofill)",
+  "type": "module",
+  "scripts": {
+    "icons": "node scripts/icons.mjs",
+    "build": "tsc -b && node scripts/icons.mjs && vite build",
+    "typecheck": "tsc -b",
+    "build:store": "node scripts/store-zip.mjs"
+  },
+  "license": "AGPL-3.0-or-later",
+  "dependencies": {
+    "@fontsource-variable/manrope": "^5.3.0",
+    "hash-wasm": "^4.13.0",
+    "lucide-react": "^1.73.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@resvg/resvg-js": "^2.6.2",
+    "@tailwindcss/vite": "^4.3.5",
+    "@types/chrome": "^0.3.7",
+    "@types/node": "^24.19.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8"
+  }
+}

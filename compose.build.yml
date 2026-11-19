@@ -1,0 +1,21 @@
+# Entwicklung: Images aus dem Quellcode bauen statt fertige Images aus der Registry zu laden.
+#   docker compose -f compose.yml -f compose.build.yml up -d --build
+# Dauerhaft für diesen Ordner (in .env):
+#   COMPOSE_PATH_SEPARATOR=:
+#   COMPOSE_FILE=compose.yml:compose.build.yml
+services:
+  migrate:
+    build: &bastion-build
+      context: .
+      args:
+        GIT_COMMIT: ${GIT_COMMIT:-}
+    image: bastion:latest
+  bastion:
+    build: *bastion-build
+    image: bastion:latest
+  caddy:
+    build: ./caddy
+    image: bastion-caddy:latest
+  backup:
+    build: ./backup
+    image: bastion-backup:latest

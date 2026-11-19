@@ -1,0 +1,19 @@
+# Zusatzkonfiguration NUR für die Sicherheitstests (nie produktiv verwenden):
+# - App direkt auf 127.0.0.1:13000 (ohne Caddy), damit jede simulierte Person eine eigene IP (X-Forwarded-For) nutzen kann
+# - ohne Secure-Cookies (HTTP)
+# - host.docker.internal zeigt auf den Testrechner, auf dem die Gegenstellen (WebDAV, SMTP) der Tests laufen
+# - BASTION_TEST_IMAGE: eigener Image-Name für die Tests, damit ein lokal genutztes bastion:latest nicht überschrieben wird
+services:
+  migrate:
+    image: ${BASTION_TEST_IMAGE:-bastion:latest}
+  bastion:
+    image: ${BASTION_TEST_IMAGE:-bastion:latest}
+    ports:
+      - "127.0.0.1:13000:3000"
+    environment:
+      PUBLIC_URL: http://127.0.0.1:13000
+      COOKIE_SECURE: "false"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+  backup:
+    image: ${BASTION_TEST_BACKUP_IMAGE:-bastion-backup:latest}

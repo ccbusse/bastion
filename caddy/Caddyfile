@@ -1,0 +1,35 @@
+# Reverse-Proxy mit automatischem TLS.
+# - BASTION_DOMAIN=localhost  → selbstsigniertes Zertifikat (lokale Caddy-CA)
+# - BASTION_DOMAIN=vault.firma.de → automatisches Let's-Encrypt-Zertifikat (DNS + Ports 80/443 erforderlich)
+{
+	admin off
+	# Lokale CA nicht in den Zertifikatsspeicher des (schreibgeschützten) Containers eintragen; dort ohne Nutzen
+	skip_install_trust
+	servers {
+		protocols h1 h2
+	}
+	# Optionale Einstellungen vom Startskript (z. B. "email" aus ACME_EMAIL); fehlt die Datei, gilt nichts davon
+	import /tmp/caddy.d/*
+}
+
+# HTTP nur zur Weiterleitung auf HTTPS (ohne Server-Header); ACME-HTTP-Challenges beantwortet Caddy weiterhin automatisch.
+# Ziel ist der Ursprung aus PUBLIC_URL (BASTION_ORIGIN, vom Startskript gesetzt), damit ein abweichender HTTPS-Port erhalten bleibt.
+http://{$BASTION_DOMAIN:localhost} {
+	header -Server
+	redir {$BASTION_ORIGIN:https://localhost}{uri} 308
+}
+
+{$BASTION_DOMAIN:localhost} {
+	encode zstd gzip
+	header -Server
+	request_body {
+		max_size 10MB
+	}
+	reverse_proxy bastion:3000 {
+		header_up X-Forwarded-Proto {scheme}
+	}
+	log {
+		output stdout
+		format json
+	}
+}

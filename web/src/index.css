@@ -1,0 +1,297 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-brand-50: #f3f5fa;
+  --color-brand-100: #e5e9f3;
+  --color-brand-200: #c7d0e4;
+  --color-brand-300: #9babcd;
+  --color-brand-400: #6c81af;
+  --color-brand-500: #4b6091;
+  --color-brand-600: #3b4d77;
+  --color-brand-700: #2e3f66;
+  --color-brand-800: #263352;
+  --color-brand-900: #1f2a44;
+  --color-brand-950: #141b2d;
+  --color-gold-300: #f3d184;
+  --color-gold-400: #ecbb45;
+  --color-gold-500: #e0a526;
+  --color-gold-600: #c08a16;
+  --font-sans: system-ui, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: ui-monospace, 'Cascadia Code', 'SF Mono', Consolas, 'Liberation Mono', monospace;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  @apply bg-slate-50 text-slate-800 antialiased;
+}
+
+/*
+ * Nachtmodus (html.dark): Die neutralen Farben werden über die Tailwind-Variablen invertiert,
+ * die hellen Markenfarb-Töne abgedunkelt. Bereiche mit .theme-fixed (Seitenleiste, Anmelde-Hintergrund)
+ * behalten ihre Originalfarben, .theme-content schaltet darin wieder auf das dunkle Schema.
+ */
+html.dark {
+  color-scheme: dark;
+}
+html.dark,
+html.dark .theme-content {
+  --color-slate-50: #0b1120;
+  --color-slate-100: #1a2438;
+  --color-slate-200: #263149;
+  --color-slate-300: #36435e;
+  --color-slate-400: #6b7891;
+  --color-slate-500: #8f9bb3;
+  --color-slate-600: #a9b4c8;
+  --color-slate-700: #c3ccdb;
+  --color-slate-800: #dbe2ec;
+  --color-slate-900: #eef2f7;
+  --color-brand-50: #1c2945;
+  --color-brand-100: #24345a;
+  --color-brand-200: #2f4170;
+  --color-brand-500: #7d93c7;
+  --color-brand-600: #9aaedb;
+  --color-brand-700: #b4c4e8;
+  --color-brand-800: #6680bd;
+  --color-brand-900: #5570ad;
+}
+html.dark .theme-fixed {
+  --color-slate-50: #f8fafc;
+  --color-slate-100: #f1f5f9;
+  --color-slate-200: #e2e8f0;
+  --color-slate-300: #cbd5e1;
+  --color-slate-400: #94a3b8;
+  --color-slate-500: #64748b;
+  --color-slate-600: #475569;
+  --color-slate-700: #334155;
+  --color-slate-800: #1e293b;
+  --color-slate-900: #0f172a;
+  --color-brand-50: #f3f5fa;
+  --color-brand-100: #e5e9f3;
+  --color-brand-200: #c7d0e4;
+  --color-brand-500: #4b6091;
+  --color-brand-600: #3b4d77;
+  --color-brand-700: #2e3f66;
+  --color-brand-800: #263352;
+  --color-brand-900: #1f2a44;
+}
+/* Flächen und Statusfarben (bewusst außerhalb der Layer, damit sie die Utilities überschreiben) */
+html.dark .bg-white,
+html.dark .hover\:bg-white:hover {
+  background-color: #111a2b;
+}
+html.dark .theme-fixed .bg-white {
+  background-color: #ffffff;
+}
+html.dark .theme-fixed .theme-content.bg-white,
+html.dark .theme-fixed .theme-content .bg-white {
+  background-color: #111a2b;
+}
+html.dark .text-brand-800 { color: #c7d4f0; }
+html.dark .theme-fixed .text-brand-800 { color: #263352; }
+html.dark .bg-red-50 { background-color: #2a1215; }
+html.dark .bg-red-100 { background-color: #3b1519; }
+html.dark .border-red-200 { border-color: #5c2328; }
+html.dark .text-red-600 { color: #f87171; }
+html.dark .text-red-700,
+html.dark .text-red-800 { color: #fca5a5; }
+html.dark .bg-emerald-50 { background-color: #0f2a20; }
+html.dark .border-emerald-200 { border-color: #1d4d3a; }
+html.dark .text-emerald-600 { color: #34d399; }
+html.dark .text-emerald-700,
+html.dark .text-emerald-800 { color: #6ee7b7; }
+html.dark .bg-amber-50 { background-color: #2b2210; }
+html.dark .border-amber-200 { border-color: #5a4616; }
+html.dark .text-amber-600 { color: #fbbf24; }
+html.dark .text-amber-700,
+html.dark .text-amber-800,
+html.dark .text-amber-900 { color: #fcd34d; }
+
+:focus-visible {
+  @apply outline-2 outline-offset-2 outline-gold-500;
+}
+
+.scrollbar-thin {
+  scrollbar-width: thin;
+}
+
+.scrollbar-none {
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+/* ---------- Anmeldeseiten (Entwurf „Horizont“) ---------- */
+.auth-root {
+  font-family: 'Manrope Variable', var(--font-sans);
+  background: #05080f;
+}
+.auth-sky {
+  background: linear-gradient(180deg, #05080f 0%, #0d1426 34%, #1f2a44 62%, #3b3a45 84%, #05080f 100%);
+}
+.auth-dawn {
+  background: radial-gradient(ellipse 50% 50% at 50% 66%, rgba(255, 214, 120, 0.95) 0%, rgba(236, 187, 69, 0.55) 30%, rgba(224, 165, 38, 0.18) 64%, rgba(224, 165, 38, 0) 100%);
+  mix-blend-mode: screen;
+  animation: auth-dawn 2.4s ease-out both;
+}
+@keyframes auth-dawn {
+  from {
+    opacity: 0;
+    /* nur transform: die Zentrierung (translate) setzt die Utility-Klasse separat */
+    transform: translateY(12%) scale(0.85);
+  }
+}
+.auth-star {
+  animation: auth-twinkle 6s ease-in-out infinite;
+}
+@keyframes auth-twinkle {
+  50% {
+    opacity: 0.15;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .auth-dawn,
+  .auth-star {
+    animation: none;
+  }
+}
+.auth-panel {
+  --tw-ring-color: rgba(255, 255, 255, 0.6);
+}
+html.dark .auth-panel {
+  --tw-ring-color: rgba(255, 255, 255, 0.1);
+}
+/* Tagmodus: Hauptknopf in Nachtblau mit goldener Schrift, wie die Festung im Hintergrund */
+html:not(.dark) .auth-panel button[type='submit']:not(:disabled) {
+  background-color: #141b2d;
+  color: #f3d184;
+}
+html:not(.dark) .auth-panel button[type='submit']:not(:disabled):hover {
+  background-color: #1f2a44;
+}
+/* Größere Formularelemente im Anmeldebereich */
+.auth-panel input:not([type='checkbox']):not([type='radio']) {
+  height: 3.25rem;
+  border-radius: 0.875rem;
+  border-width: 1.5px;
+  padding-left: 1rem;
+  font-size: 15px;
+}
+.auth-panel label {
+  font-weight: 700;
+}
+.auth-panel button[type='submit'] {
+  position: relative;
+  overflow: hidden;
+  height: 3.5rem;
+  border-radius: 0.875rem;
+  font-size: 16px;
+  font-weight: 700;
+  box-shadow: 0 18px 40px rgba(20, 27, 45, 0.28);
+}
+.auth-panel button[type='submit']::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -60%;
+  width: 40%;
+  height: 100%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.22), transparent);
+  transform: skewX(-20deg);
+  animation: auth-sweep 3.2s ease-in-out infinite;
+}
+@keyframes auth-sweep {
+  60%,
+  100% {
+    left: 130%;
+  }
+}
+
+/* Notfall-Schlüsselblatt: nur im Druck sichtbar, alles andere wird ausgeblendet */
+.print-sheet {
+  display: none;
+}
+@media print {
+  @page {
+    margin: 16mm;
+  }
+  html,
+  body {
+    background: #fff !important;
+  }
+  body * {
+    visibility: hidden !important;
+  }
+  .print-sheet,
+  .print-sheet * {
+    visibility: visible !important;
+  }
+  .print-sheet {
+    display: block;
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 100%;
+    color: #000;
+    font-size: 11pt;
+    line-height: 1.45;
+  }
+  .print-sheet h1 {
+    font-size: 20pt;
+    font-weight: 800;
+  }
+  .print-sheet .sub {
+    margin-bottom: 8mm;
+    color: #333;
+  }
+  .print-sheet h2 {
+    margin: 7mm 0 2mm;
+    font-size: 13pt;
+    font-weight: 700;
+  }
+  .print-sheet table {
+    border-collapse: collapse;
+  }
+  .print-sheet th {
+    padding: 1mm 6mm 1mm 0;
+    text-align: left;
+    font-weight: 600;
+    vertical-align: top;
+  }
+  .print-sheet td {
+    padding: 1mm 0;
+  }
+  .print-sheet .mono,
+  .print-sheet .code {
+    font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  }
+  .print-sheet .code {
+    display: grid;
+    grid-template-columns: repeat(4, max-content);
+    gap: 3mm 8mm;
+    padding: 6mm;
+    border: 0.6mm solid #000;
+    border-radius: 2mm;
+    font-size: 18pt;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+  }
+  .print-sheet ol {
+    padding-left: 6mm;
+    list-style: decimal;
+  }
+  .print-sheet .warn {
+    margin-top: 7mm;
+    padding: 3mm 4mm;
+    border: 0.4mm solid #000;
+    font-weight: 600;
+  }
+  .print-sheet .copy {
+    margin-top: 10mm;
+    color: #333;
+  }
+}

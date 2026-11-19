@@ -1,0 +1,4 @@
+{
+  "extDescription": { "message": "Access your Bastion vault: search and copy entries and fill in logins on click." },
+  "cmdFill": { "message": "Fill in login for the current page" }
+}

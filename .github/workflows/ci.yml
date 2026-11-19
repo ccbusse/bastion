@@ -1,0 +1,145 @@
+# Prüfungen bei jedem Push und Pull Request auf master sowie wöchentlich (neue CVEs auch ohne Code-Änderung).
+# Gehärtet: nur Leserechte, Actions und Images per Commit-SHA bzw. Digest fixiert, keine Secrets erforderlich.
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  schedule:
+    - cron: "0 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  server:
+    name: Server (C#) – Build, Tests, Schwachstellen
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          dotnet-version: 10.0.x
+      # Nur die in packages.lock.json festgehaltenen Paketversionen (Schutz vor unbemerkt geänderten Abhängigkeiten)
+      - name: Abhängigkeiten wiederherstellen
+        run: dotnet restore --locked-mode
+      - name: Formatierung
+        run: dotnet format whitespace --verify-no-changes --no-restore
+      - name: Build (Warnungen sind Fehler)
+        run: dotnet build --no-restore -c Release
+      - name: Unit-Tests
+        run: dotnet test --no-build -c Release
+      - name: Bekannte Schwachstellen (NuGet)
+        run: |
+          dotnet list package --vulnerable --include-transitive | tee /tmp/vuln.txt
+          ! grep -q "has the following vulnerable packages" /tmp/vuln.txt
+
+  packages:
+    name: Build, Typecheck, Audit (${{ matrix.package }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [web, extension]
+    defaults:
+      run:
+        working-directory: ${{ matrix.package }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ${{ matrix.package }}/package-lock.json
+      - name: Abhängigkeiten installieren
+        run: npm ci --no-audit --no-fund
+      - name: Build
+        run: npm run build
+      - name: Typecheck
+        run: npm run typecheck
+      # Blockierend nur für ausgelieferte Abhängigkeiten. Build-Werkzeuge (Vite usw.) laufen nicht beim Nutzer und
+      # haben teils Warnungen ohne verfügbare Korrektur; sie werden im folgenden Schritt nur angezeigt.
+      - name: Bekannte Schwachstellen (npm audit, ausgelieferte Abhängigkeiten)
+        run: npm audit --omit=dev --audit-level=moderate
+      - name: Bekannte Schwachstellen (npm audit, Build-Werkzeuge, nur Hinweis)
+        continue-on-error: true
+        run: npm audit --audit-level=moderate
+
+  secrets:
+    name: Secret-Scan (gitleaks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Gesamte Git-Historie auf Secrets prüfen
+        run: >-
+          docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/repo"
+          ghcr.io/gitleaks/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f
+          git /repo --redact --no-banner --exit-code 1
+
+  image:
+    name: Image-Scan und Sicherheitstests
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Image bauen
+        run: docker build -t bastion:latest --build-arg GIT_COMMIT="${GITHUB_SHA}" .
+      - name: Reverse-Proxy-Image bauen
+        run: docker build -t bastion-caddy:latest caddy
+      - name: Schwachstellen im Image (trivy)
+        run: >-
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock
+          aquasec/trivy:0.76.1@sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c
+          image --no-progress --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed bastion:latest
+      - name: Schwachstellen im Reverse-Proxy-Image (trivy)
+        run: >-
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock
+          aquasec/trivy:0.76.1@sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c
+          image --no-progress --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed bastion-caddy:latest
+      - name: Backup-Image bauen
+        run: docker build -t bastion-backup:latest backup
+      - name: Schwachstellen im Backup-Image (trivy)
+        run: >-
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock
+          aquasec/trivy:0.76.1@sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c
+          image --no-progress --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed bastion-backup:latest
+      - name: Compose-Datei prüfen
+        run: |
+          printf 'APP_SECRET=%s\nPOSTGRES_PASSWORD=x\nAPP_DB_PASSWORD=x\n' "$(openssl rand -base64 48)" > /tmp/ci.env
+          docker compose --env-file /tmp/ci.env config -q
+          docker compose --env-file /tmp/ci.env -f compose.yml -f compose.build.yml config -q
+          docker compose --env-file /tmp/ci.env -f compose.yml -f tests/security/compose.test.yml config -q
+      - name: Abhängigkeiten des Web-Clients (Krypto-Module für die Tests)
+        working-directory: web
+        run: npm ci --no-audit --no-fund
+      - name: Sicherheits-Regressionstests
+        run: bash tests/security/run.sh
+      - name: Datenbank-Backup und Wiederherstellung
+        run: bash tests/backup/run.sh

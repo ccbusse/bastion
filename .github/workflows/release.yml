@@ -1,0 +1,219 @@
+# Veröffentlichung einer Bastion-Version (ausgelöst durch einen Tag vX.Y.Z, angelegt mit scripts/release.sh).
+#   1. Prüfen: Tag passt zu VERSION, compose.yml und CHANGELOG.md; die CI für genau diesen Commit ist grün.
+#   2. Images bauen (bastion, bastion-caddy, bastion-backup), mit Trivy prüfen, nach ghcr.io pushen,
+#      mit SBOM und Build-Herkunft (provenance) versehen und mit cosign signieren (keyless über die Workflow-Identität).
+#   3. GitHub-Release mit Änderungen aus CHANGELOG.md und dem Installationspaket (Compose-Datei, Caddyfile, .env.example, Doku).
+# Gehärtet: Actions und Images per Commit-SHA bzw. Digest fixiert, Schreibrechte nur in den Jobs, die sie brauchen.
+name: Release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Vorhandener Tag, z. B. v2.2.0 (erneut veröffentlichen)"
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  TAG: ${{ github.event.inputs.tag || github.ref_name }}
+  REGISTRY: ghcr.io/${{ github.repository_owner }}
+
+jobs:
+  check:
+    name: Voraussetzungen prüfen
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      sha: ${{ steps.v.outputs.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.TAG }}
+          persist-credentials: false
+      - name: Tag, VERSION, Compose-Datei und Changelog stimmen überein
+        id: v
+        run: |
+          set -euo pipefail
+          [[ "$TAG" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)$ ]] || { echo "::error::Tag $TAG hat nicht die Form vX.Y.Z"; exit 1; }
+          version="${BASH_REMATCH[1]}"
+          [ "$(cat VERSION)" = "$version" ] || { echo "::error::VERSION ist $(cat VERSION), Tag ist $TAG"; exit 1; }
+          n=$(grep -c "BASTION_VERSION:-$version}" compose.yml || true)
+          [ "$n" -eq 4 ] || { echo "::error::compose.yml verweist nicht in allen 4 Diensten auf $version"; exit 1; }
+          grep -q "^## \[$version\]" CHANGELOG.md || { echo "::error::CHANGELOG.md hat keinen Abschnitt [$version]"; exit 1; }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: CI für diesen Commit ist grün (wartet, falls sie noch läuft)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ steps.v.outputs.sha }}
+        run: |
+          set -euo pipefail
+          runs="repos/${{ github.repository }}/actions/workflows/ci.yml/runs?head_sha=$SHA&per_page=20"
+          for _ in $(seq 1 50); do
+            ok=$(gh api "$runs" --jq '[.workflow_runs[] | select(.conclusion == "success")] | length')
+            open=$(gh api "$runs" --jq '[.workflow_runs[] | select(.status != "completed")] | length')
+            [ "$ok" -ge 1 ] && { echo "CI grün für $SHA"; exit 0; }
+            [ "$open" -eq 0 ] && [ "$(gh api "$runs" --jq '.total_count')" -ge 1 ] && break
+            echo "CI läuft noch, warte …"; sleep 60
+          done
+          echo "::error::Kein erfolgreicher CI-Lauf für $SHA. CI reparieren, dann den Workflow Release mit dem Tag erneut starten."
+          exit 1
+
+  images:
+    name: Image ${{ matrix.name }}
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      packages: write
+      id-token: write   # cosign keyless: Signatur über die Identität dieses Workflows
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - name: bastion
+            context: .
+          - name: bastion-caddy
+            context: caddy
+          - name: bastion-backup
+            context: backup
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
+      SHA: ${{ needs.check.outputs.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.check.outputs.sha }}
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Image lokal bauen
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ${{ matrix.context }}
+          build-args: GIT_COMMIT=${{ needs.check.outputs.sha }}
+          load: true
+          tags: ${{ matrix.name }}:scan
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+      - name: Schwachstellen (trivy)
+        run: >-
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock
+          aquasec/trivy:0.76.1@sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c
+          image --no-progress --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed ${{ matrix.name }}:scan
+      - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Bauen und veröffentlichen (mit SBOM und Build-Herkunft)
+        id: push
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ${{ matrix.context }}
+          build-args: GIT_COMMIT=${{ needs.check.outputs.sha }}
+          push: true
+          sbom: true
+          provenance: mode=max
+          cache-from: type=gha,scope=${{ matrix.name }}
+          tags: |
+            ${{ env.REGISTRY }}/${{ matrix.name }}:${{ env.VERSION }}
+            ${{ env.REGISTRY }}/${{ matrix.name }}:latest
+          labels: |
+            org.opencontainers.image.title=${{ matrix.name }}
+            org.opencontainers.image.version=${{ env.VERSION }}
+            org.opencontainers.image.revision=${{ env.SHA }}
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+      - uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
+      - name: Signieren (cosign keyless)
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: cosign sign --yes "$REGISTRY/${{ matrix.name }}@$DIGEST"
+      - name: Digest festhalten
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: echo "$REGISTRY/${{ matrix.name }}:$VERSION@$DIGEST" > "digest-${{ matrix.name }}.txt"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: digest-${{ matrix.name }}
+          path: digest-${{ matrix.name }}.txt
+
+  release:
+    name: GitHub-Release
+    needs: [check, images]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.check.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: digest-*
+          merge-multiple: true
+      - name: Installationspaket und Release-Text
+        run: |
+          set -euo pipefail
+          pkg="bastion-$VERSION"
+          mkdir -p "$pkg/docs"
+          cp compose.yml .env.example README.md CHANGELOG.md LICENSE "$pkg/"
+          cp caddy/Caddyfile "$pkg/Caddyfile"
+          cp docs/SECURITY.md "$pkg/docs/"
+          cat digest-*.txt > "$pkg/IMAGES.txt"
+          tar -czf "$pkg.tar.gz" "$pkg"
+          sha256sum "$pkg.tar.gz" > "$pkg.tar.gz.sha256"
+          # Einzelne Dateien für die Installation mit install.sh (lädt compose.yml und env.example aus genau diesem Release).
+          # Release-Dateien dürfen nicht mit einem Punkt beginnen, daher env.example statt .env.example.
+          mkdir -p install
+          cp compose.yml install/compose.yml
+          cp .env.example install/env.example
+          sed "s/__BASTION_RELEASE__/$TAG/" scripts/install.sh > install/install.sh
+          grep -q "RELEASE=\"$TAG\"" install/install.sh || { echo "::error::Version nicht in install.sh eingesetzt"; exit 1; }
+          (cd install && sha256sum compose.yml env.example install.sh > SHA256SUMS)
+          {
+            awk -v v="$VERSION" '$0 ~ "^## \\[" v "\\]" {on=1; next} /^## \[/ {on=0} on' CHANGELOG.md
+            echo
+            echo "### Images"
+            echo
+            echo '```'
+            cat digest-*.txt
+            echo '```'
+            echo
+            echo "### Installation"
+            echo
+            echo '```bash'
+            echo "curl -fsSL https://github.com/ccbusse/bastion/releases/download/$TAG/install.sh | bash"
+            echo '```'
+            echo
+            echo "Alternativ das Installationspaket. Signatur prüfen und Details: README, Abschnitte *Installation* und *Aktualisieren*."
+          } > notes.md
+          cat notes.md
+      - name: Release anlegen
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          files=("bastion-$VERSION.tar.gz" "bastion-$VERSION.tar.gz.sha256" install/compose.yml install/env.example install/install.sh install/SHA256SUMS)
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "${files[@]}" --clobber
+            gh release edit "$TAG" --notes-file notes.md
+          else
+            gh release create "$TAG" --verify-tag --title "Bastion $VERSION" --notes-file notes.md "${files[@]}"
+          fi
