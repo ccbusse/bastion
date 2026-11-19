@@ -322,6 +322,10 @@ cd extension && npm install && npm run build
 
 Then load `extension/dist` in `chrome://extensions` with "Load unpacked" (developer mode).
 
+## Contributing
+
+Bug reports, ideas and pull requests are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) first; it covers the development setup, the checks to run and the guidelines.
+
 ## Security
 
 Please report vulnerabilities privately via GitHub's [private vulnerability reporting](https://github.com/ccbusse/bastion/security/advisories/new) (*Security → Report a vulnerability*), not in public issues. The security concept is described in [docs/SECURITY.md](docs/SECURITY.md) (German).
