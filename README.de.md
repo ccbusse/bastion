@@ -319,6 +319,10 @@ cd extension && npm install && npm run build
 
 Danach `extension/dist` in `chrome://extensions` mit „Entpackte Erweiterung laden“ einbinden (Entwicklermodus).
 
+## Mitwirken
+
+Fehlerberichte, Ideen und Pull Requests sind willkommen. Bitte vorher [CONTRIBUTING.md](CONTRIBUTING.md) lesen (Englisch): Entwicklungsumgebung, Prüfungen vor einem Pull Request und Richtlinien.
+
 ## Sicherheit
 
 Schwachstellen bitte vertraulich über die [Meldefunktion von GitHub](https://github.com/ccbusse/bastion/security/advisories/new) melden (*Security → Report a vulnerability*), nicht in öffentlichen Issues. Das Sicherheitskonzept steht in [docs/SECURITY.md](docs/SECURITY.md).
