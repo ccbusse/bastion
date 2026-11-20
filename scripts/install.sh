@@ -11,6 +11,8 @@
 #   BASTION_DOMAIN       Domain, z. B. vault.firma.de (Standard: localhost)
 #   HTTP_PORT, HTTPS_PORT  Ports des Reverse-Proxys (Standard: 80, 443)
 #   ACME_EMAIL           Kontaktadresse für Let's Encrypt (nur bei echter Domain gefragt; leer = ohne)
+#   BASTION_PROXY        ja|nein: Davor steht ein Proxy, der HTTPS annimmt, z. B. HAProxy auf pfSense (Standard: nein)
+#   TRUSTED_PROXIES      Adresse(n)/Netz(e) dieses Proxys (Standard: private_ranges = alle privaten Netze)
 #   BASTION_BACKUP_KEY   ja|nein: Schlüssel für das Datenbank-Backup jetzt erzeugen (Standard: ja)
 #   BASTION_BASE_URL     Quelle für compose.yml und .env.example (Standard: dieses Release auf GitHub)
 #   BASTION_REGISTRY, BASTION_VERSION  andere Image-Quelle bzw. -Version (werden in .env übernommen)
@@ -84,8 +86,19 @@ ask BASTION_DOMAIN "Domain (z. B. vault.firma.de; localhost zum Ausprobieren)" l
 ask HTTPS_PORT "HTTPS-Port" 443
 ask HTTP_PORT "HTTP-Port (Weiterleitung und Let's Encrypt)" 80
 [[ $HTTPS_PORT =~ ^[0-9]+$ && $HTTP_PORT =~ ^[0-9]+$ ]] || fail "Ports müssen Zahlen sein."
+ask BASTION_PROXY "Steht ein Proxy davor, der HTTPS annimmt (z. B. HAProxy auf pfSense)? (ja/nein)" nein
+PROXY=
+if [[ $(printf %s "$BASTION_PROXY" | tr "[:upper:]" "[:lower:]") =~ ^(j|ja|y|yes)$ ]]; then
+  PROXY=1
+  ask TRUSTED_PROXIES "IP-Adresse oder Netz des Proxys (z. B. 10.8.10.1 oder 10.8.10.0/24)" private_ranges
+  TRUSTED_PROXIES=${TRUSTED_PROXIES//,/ }
+  [ -n "${TRUSTED_PROXIES// /}" ] || fail "Keine Adresse des Proxys angegeben."
+  for p in $TRUSTED_PROXIES; do
+    [[ $p == private_ranges || ( $p =~ ^[0-9A-Fa-f.:]+(/[0-9]{1,3})?$ && $p =~ [.:] ) ]] || fail "Keine IP-Adresse bzw. kein Netz: $p"
+  done
+fi
 ACME_EMAIL=${ACME_EMAIL:-}
-if [ "$BASTION_DOMAIN" != "localhost" ]; then
+if [ "$BASTION_DOMAIN" != "localhost" ] && [ -z "$PROXY" ]; then
   ask ACME_EMAIL "E-Mail für Let's Encrypt (optional, Enter = ohne)" ""
   [ -z "$ACME_EMAIL" ] || [[ $ACME_EMAIL =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]] || fail "Ungültige E-Mail-Adresse: $ACME_EMAIL"
 fi
@@ -103,6 +116,10 @@ set_env BASTION_DOMAIN "$BASTION_DOMAIN"
 set_env HTTP_PORT "$HTTP_PORT"
 set_env HTTPS_PORT "$HTTPS_PORT"
 [ -z "$ACME_EMAIL" ] || set_env ACME_EMAIL "$ACME_EMAIL"
+if [ -n "$PROXY" ]; then
+  set_env TLS_MODE internal
+  set_env TRUSTED_PROXIES "$TRUSTED_PROXIES"
+fi
 set_env APP_SECRET "$(rand_b64 48)"
 set_env POSTGRES_PASSWORD "$(rand_hex 32)"
 set_env APP_DB_PASSWORD "$(rand_hex 32)"
@@ -155,7 +172,12 @@ if [ -n "$KEYFILE" ]; then
 else
   info " • Das Datenbank-Backup ist noch nicht eingerichtet (README, Abschnitt \"Datenbank-Backup\")."
 fi
-if [ "$BASTION_DOMAIN" = "localhost" ]; then
+if [ -n "$PROXY" ]; then
+  SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || true)
+  info " • Proxy davor: Das Backend dort per HTTPS ansprechen (${SERVER_IP:-<IP dieses Servers>}, Port $HTTPS_PORT, verschlüsselt)."
+  info "   pfSense/HAProxy: Backend → Encrypt(SSL) = yes, SSL checks = no. Unverschlüsselt ergibt das eine Weiterleitungsschleife."
+  info "   Bastion nutzt ein Zertifikat seiner lokalen CA; das Zertifikat für die Browser stellt der Proxy bereit."
+elif [ "$BASTION_DOMAIN" = "localhost" ]; then
   info " • Für localhost erzeugt Bastion ein selbstsigniertes Zertifikat: die Browserwarnung einmal bestätigen."
 else
   info " • Für $BASTION_DOMAIN holt Bastion automatisch ein Let's-Encrypt-Zertifikat (DNS und Ports $HTTP_PORT/$HTTPS_PORT müssen erreichbar sein)."
