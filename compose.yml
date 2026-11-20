@@ -127,6 +127,9 @@ services:
       # Ziel der HTTP→HTTPS-Weiterleitung (Ursprung, inklusive abweichendem HTTPS-Port)
       PUBLIC_URL: ${PUBLIC_URL:-https://localhost}
       ACME_EMAIL: ${ACME_EMAIL:-}
+      # Betrieb hinter einem weiteren Proxy (z. B. HAProxy auf pfSense): siehe .env.example
+      TLS_MODE: ${TLS_MODE:-auto}
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
     volumes:
       # Das Caddyfile steckt im Image. Eigenes (z. B. für eigene Zertifikate): Datei neben compose.yml anlegen und diese Zeile einkommentieren
       # - ./Caddyfile:/etc/caddy/Caddyfile:ro

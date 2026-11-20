@@ -1,12 +1,18 @@
 # Reverse-Proxy mit automatischem TLS.
 # - BASTION_DOMAIN=localhost  → selbstsigniertes Zertifikat (lokale Caddy-CA)
 # - BASTION_DOMAIN=vault.firma.de → automatisches Let's-Encrypt-Zertifikat (DNS + Ports 80/443 erforderlich)
+# - TLS_MODE=internal → Zertifikat der lokalen Caddy-CA statt Let's Encrypt (z. B. hinter HAProxy/pfSense, nur internes DNS)
+# - TRUSTED_PROXIES → Adressen eines vorgeschalteten Proxys; die Client-IP stammt dann aus dessen X-Forwarded-For
 {
 	admin off
 	# Lokale CA nicht in den Zertifikatsspeicher des (schreibgeschützten) Containers eintragen; dort ohne Nutzen
 	skip_install_trust
+	# Ohne SNI (manche vorgeschaltete Proxys senden keines) trotzdem das Zertifikat der Domain ausliefern
+	default_sni {$BASTION_DOMAIN:localhost}
 	servers {
 		protocols h1 h2
+		# Vertrauenswürdige vorgeschaltete Proxys (vom Startskript aus TRUSTED_PROXIES erzeugt; sonst leer)
+		import /tmp/caddy.servers.d/*
 	}
 	# Optionale Einstellungen vom Startskript (z. B. "email" aus ACME_EMAIL); fehlt die Datei, gilt nichts davon
 	import /tmp/caddy.d/*
@@ -20,12 +26,17 @@ http://{$BASTION_DOMAIN:localhost} {
 }
 
 {$BASTION_DOMAIN:localhost} {
+	# Zertifikatsquelle (vom Startskript aus TLS_MODE erzeugt; Standard: automatisch)
+	import /tmp/caddy.site.d/*
 	encode zstd gzip
 	header -Server
 	request_body {
 		max_size 10MB
 	}
 	reverse_proxy bastion:3000 {
+		# Genau eine Adresse weitergeben: die von Caddy ermittelte Client-IP (bei TRUSTED_PROXIES aus X-Forwarded-For).
+		# Bastion vertraut nur dem letzten Eintrag (TRUST_PROXY=1).
+		header_up X-Forwarded-For {client_ip}
 		header_up X-Forwarded-Proto {scheme}
 	}
 	log {
