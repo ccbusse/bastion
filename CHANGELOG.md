@@ -7,6 +7,8 @@ Neue Einträge kommen unter *Unveröffentlicht*; `scripts/release.sh X.Y.Z` mach
 
 ## [Unveröffentlicht]
 
+## [2.6.0] – 2026-11-20
+
 ### Neu
 - Betrieb hinter einem Proxy, der HTTPS annimmt (z. B. HAProxy auf pfSense): `TLS_MODE=internal` lässt Caddy ein Zertifikat seiner lokalen CA verwenden statt Let's Encrypt. Das funktioniert auch, wenn die Domain nur im internen DNS existiert. `TRUSTED_PROXIES` nennt Adresse oder Netz des Proxys, damit Bastion die echte Client-IP aus `X-Forwarded-For` erhält. `install.sh` fragt danach und zeigt am Ende die nötige Einstellung im Proxy (Backend per HTTPS, Port 443).
 - Caddy liefert das Zertifikat der Domain auch an Clients ohne SNI aus (manche Proxys senden keines).
