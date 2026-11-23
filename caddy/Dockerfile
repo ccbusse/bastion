@@ -7,7 +7,7 @@
 # Die Ports 80/443 gibt docker-compose per sysctl net.ipv4.ip_unprivileged_port_start=0 für den Netz-Namensraum des
 # Containers frei; eine Datei-Capability (wie im offiziellen Image) ist daher nicht nötig.
 # Basis-Images per Digest fixiert. Aktualisieren: Digest des neuen Tags eintragen.
-FROM golang:1-trixie@sha256:c47c3fda018d13d43a6bf5ebac3e5bba8a23a35782aa4faf531afaf47c64c39f AS build
+FROM golang:1-trixie@sha256:f18c3d73a184fb0582828510722e723b63a93f7188d11dd223d9be6f6880e65d AS build
 WORKDIR /src
 ENV CGO_ENABLED=0 GOFLAGS=-mod=readonly GOTOOLCHAIN=local
 COPY go.mod go.sum ./
