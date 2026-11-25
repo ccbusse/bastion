@@ -903,7 +903,7 @@ export const de = {
       webdavUrl: 'Adresse des Ordners',
       subfolder: 'Unterordner',
       subfolderHint: 'Relativ zu {{base}}; leer = direkt dort.',
-      folderInfo: '{{base}} ist ein Verzeichnis im Container. Der Administrator bindet dort das gewünschte Ziel ein (EMERGENCY_BACKUP_PATH in .env, siehe README).',
+      folderInfo: '{{base}} ist ein Verzeichnis im Container. Der Administrator bindet dort das gewünschte Ziel ein (EMERGENCY_BACKUP_PATH in .env, siehe Betriebsanleitung, Abschnitt Notfall-Backup).',
       hostKeyInfo: 'Beim ersten Verbinden merkt sich Bastion die Kennung des Servers. Ändert sie sich später, schlägt der Export fehl, bis Sie die neue Kennung bewusst übernehmen.',
     },
     title: 'Automatischer Export',

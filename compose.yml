@@ -1,7 +1,7 @@
 name: bastion
 
 # Fertige, signierte Images aus der GitHub Container Registry (Version: BASTION_VERSION in .env, Standard siehe unten).
-# Diese Datei braucht nur eine .env daneben (Vorlage: .env.example, oder automatisch mit install.sh, siehe README).
+# Diese Datei braucht nur eine .env daneben (Vorlage: .env.example, oder automatisch mit install.sh, siehe https://github.com/ccbusse/bastion/blob/master/docs/OPERATIONS.de.md).
 # Selbst bauen (Entwicklung): docker compose -f compose.yml -f compose.build.yml up -d --build
 
 services:
@@ -84,7 +84,7 @@ services:
 
   # Automatisches Datenbank-Backup: täglich pg_dump, verschlüsselt für BACKUP_AGE_RECIPIENTS (öffentliche age-Schlüssel).
   # Der Dienst kann seine eigenen Backups nicht entschlüsseln; der private Schlüssel liegt offline beim Betreiber.
-  # Befehle: docker compose run --rm backup list | now | keygen  ·  Wiederherstellung siehe README.
+  # Befehle: docker compose run --rm backup list | now | keygen  ·  Wiederherstellung: https://github.com/ccbusse/bastion/blob/master/docs/OPERATIONS.de.md#datenbank-backup
   backup:
     image: ${BASTION_REGISTRY:-ghcr.io/ccbusse}/bastion-backup:${BASTION_VERSION:-2.6.0}
     restart: unless-stopped

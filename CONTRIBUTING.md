@@ -27,11 +27,11 @@ You need Docker with Compose v2, the .NET 10 SDK and Node.js 24.
 The quickest way to run everything from source:
 
 ```bash
-cp .env.example .env    # then set APP_SECRET, POSTGRES_PASSWORD, APP_DB_PASSWORD (see README)
+cp .env.example .env    # then set APP_SECRET, POSTGRES_PASSWORD, APP_DB_PASSWORD (see docs/OPERATIONS.md)
 GIT_COMMIT=$(git describe --always --dirty) docker compose -f compose.yml -f compose.build.yml up -d --build
 ```
 
-For working on single parts (server with `dotnet run`, web client with `npm run dev`), see [Development](README.md#development) in the README.
+For working on single parts (server with `dotnet run`, web client with `npm run dev`), see [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
 | Part | Folder | Stack |
 |---|---|---|
