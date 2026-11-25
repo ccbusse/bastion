@@ -153,6 +153,7 @@ function AssignmentsModal({ user, onClose }: { user: UserRow; onClose: () => voi
   const [error, setError] = useState<unknown>(null);
   const users = useQuery({ queryKey: ['users'], queryFn: () => get<UserRow[]>('/users') });
   const current = users.data?.find((u) => u.id === user.id) ?? user;
+  const isSelf = user.id === info.user.id;
 
   const after = async () => {
     await distributePendingKeys(info, keys).catch(() => 0);
@@ -185,6 +186,8 @@ function AssignmentsModal({ user, onClose }: { user: UserRow; onClose: () => voi
               <li key={a.id} className="flex items-center gap-3 px-3 py-2 text-sm">
                 <span className="font-medium text-slate-800">{roleLabel(t, { key: a.roleKey, name: a.roleName })}</span>
                 <span className="mr-auto text-slate-500">{scopeLabel(a.scopeType, a.departmentId, a.folderId)}</span>
+                {/* Eigene Rechte entzieht nur jemand anderes (der Server lehnt es ebenfalls ab) */}
+                {!isSelf && (
                 <IconButton
                   label={t('common.remove')}
                   onClick={async () => {
@@ -199,12 +202,14 @@ function AssignmentsModal({ user, onClose }: { user: UserRow; onClose: () => voi
                 >
                   <Trash2 className="h-4 w-4" />
                 </IconButton>
+                )}
               </li>
             ))
           ) : (
             <li className="px-3 py-3 text-sm text-slate-400">{t('users.noRoles')}</li>
           )}
         </ul>
+        {isSelf && <p className="text-xs text-slate-500">{t('users.ownRolesHint')}</p>}
         <div className="space-y-3 rounded-md bg-slate-50 p-4">
           <p className="text-sm font-medium text-slate-700">{t('users.addRole')}</p>
           <ScopeRolePicker value={pick} onChange={setPick} />

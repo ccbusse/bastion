@@ -39,6 +39,9 @@ public sealed class RolesController(BastionDb db, PermissionService perms, Audit
     [HttpGet("permissions")]
     public object Catalog() => P.All;
 
+    private Task<bool> HoldsRole(Guid tenantId, Guid roleId) =>
+        db.RoleAssignments.AnyAsync(a => a.TenantId == tenantId && a.RoleId == roleId && a.UserId == Auth.User.Id);
+
     private async Task<AccessContext> AssertRoleEditor(IEnumerable<string> permissions)
     {
         var ctx = await perms.ForUser(Auth.User);
@@ -71,6 +74,9 @@ public sealed class RolesController(BastionDb db, PermissionService perms, Audit
         if (role.IsSystem) throw ApiException.BadRequest("SYSTEM_ROLE_IMMUTABLE");
         if (input.Permissions is not null) ValidatePermissions(input.Permissions);
         var ctx = await AssertRoleEditor(role.Permissions.Concat(input.Permissions ?? []));
+        // Rechte einer Rolle, die man selbst trägt, kann man nicht kürzen (das wäre ein Entzug eigener Rechte)
+        if (input.Permissions is not null && role.Permissions.Except(input.Permissions).Any() && await HoldsRole(tenantId, role.Id))
+            throw ApiException.BadRequest("ROLE_ASSIGNED_TO_SELF");
         // Geänderte Rechte wirken auf alle bestehenden Zuweisungen: Der Bearbeiter muss sie dort jeweils vergeben dürfen
         if (input.Permissions is not null)
         {
@@ -98,6 +104,7 @@ public sealed class RolesController(BastionDb db, PermissionService perms, Audit
         var role = await db.Roles.AsNoTracking().FirstOrDefaultAsync(r => r.Id == id && r.TenantId == tenantId) ?? throw ApiException.NotFound("ROLE_NOT_FOUND");
         if (role.IsSystem) throw ApiException.BadRequest("SYSTEM_ROLE_IMMUTABLE");
         await AssertRoleEditor(role.Permissions);
+        if (await HoldsRole(tenantId, role.Id)) throw ApiException.BadRequest("ROLE_ASSIGNED_TO_SELF");
         await db.Roles.Where(r => r.Id == role.Id).ExecuteDeleteAsync();
         await perms.PruneKeys(tenantId);
         await audit.Log(new AuditEntry("role.deleted", TenantId: tenantId, Actor: Actor.Of(Auth.User), TargetType: "role", TargetId: role.Id.ToString(), Metadata: new { name = role.Name }, Meta: Meta));
@@ -186,6 +193,8 @@ public sealed class RolesController(BastionDb db, PermissionService perms, Audit
         var a = await db.RoleAssignments.AsNoTracking().Include(x => x.Role).FirstOrDefaultAsync(x => x.Id == id && x.TenantId == tenantId) ?? throw ApiException.NotFound("ASSIGNMENT_NOT_FOUND");
         var scope = await org.ResolveScope(tenantId, new ScopeInput(a.ScopeType, a.DepartmentId, a.FolderId));
         OrgService.AssertCanAssign(await perms.ForUser(Auth.User), a.Role.Permissions, scope);
+        // Eigene Rechte entzieht nur jemand anderes: sonst sperrt man sich versehentlich aus (z. B. als einziger Manager eines Ordners)
+        if (a.UserId == Auth.User.Id) throw ApiException.BadRequest("CANNOT_TARGET_SELF");
         if (a.Role.Permissions.Contains(P.TenantAdmin))
         {
             var otherAdminAssignments = await db.RoleAssignments.CountAsync(x =>
