@@ -134,6 +134,15 @@ describe('Rollenverwalter (roles.manage + users.invite)', () => {
     assert.ok(a);
     assert.equal((await RM.del(`/assignments/${a.id}`)).status, 403);
   });
+  it('kann sich eigene Rechte nicht entziehen (Zuweisung, Rolle kürzen oder löschen)', async () => {
+    const own = (await RM.get('/assignments?scopeType=TENANT')).data.find((x) => x.userId === U.RM.id);
+    assert.ok(own);
+    assert.equal((await RM.del(`/assignments/${own.id}`)).status, 400);
+    const r = await RM.patch(`/roles/${t1.roles.rolemgr}`, { permissions: ['tenant.roles.manage'] });
+    assert.equal(r.status, 400);
+    assert.equal(r.data.message, 'ROLE_ASSIGNED_TO_SELF');
+    assert.equal((await RM.del(`/roles/${t1.roles.rolemgr}`)).status, 400);
+  });
 });
 
 describe('Abteilungs-Manager (manage auf Abteilung, F2 ohne Vererbung)', () => {
@@ -150,6 +159,12 @@ describe('Abteilungs-Manager (manage auf Abteilung, F2 ohne Vererbung)', () => {
     assert.equal((await DM.patch(`/folders/${t1.f2}`, { name: 'x' })).status, 403);
     assert.equal((await DM.post('/assignments', { userId: U.DM.id, roleId: t1.roles.viewer, scopeType: 'FOLDER', folderId: t1.f2 })).status, 403);
     assert.equal((await DM.get(`/assignments?scopeType=FOLDER&folderId=${t1.f2}`)).status, 403);
+  });
+  it('kann sich die eigene Manager-Zuweisung nicht entziehen', async () => {
+    const own = (await DM.get(`/assignments?scopeType=DEPARTMENT&departmentId=${t1.dept}`)).data.find((x) => x.userId === U.DM.id);
+    assert.ok(own);
+    assert.equal((await DM.del(`/assignments/${own.id}`)).status, 400);
+    assert.equal((await DM.get(`/assignments?scopeType=DEPARTMENT&departmentId=${t1.dept}`)).status, 200);
   });
 });
 

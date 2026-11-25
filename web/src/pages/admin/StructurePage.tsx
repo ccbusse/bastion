@@ -18,7 +18,12 @@ type Editing =
   | { kind: 'deleteFolder'; folder: FolderInfo }
   | { kind: 'rotate'; folder: FolderInfo }
   | { kind: 'rotateUnreadable'; folder: FolderInfo; items: UnreadableItem[] }
+  | { kind: 'rotateAll'; folders: FolderInfo[] }
   | null;
+
+/** Ordner, deren Schlüssel der Benutzer erneuern kann und für die eine Erneuerung empfohlen ist. */
+const rotationCandidates = (departments: DepartmentInfo[]) =>
+  departments.flatMap((d) => d.folders).filter((f) => f.keyRotationRecommended && f.hasKey && f.permissions.includes('vault.manage'));
 
 function DepartmentModal({ dept, onClose }: { dept?: DepartmentInfo; onClose: () => void }) {
   const { t } = useTranslation();
@@ -174,10 +179,16 @@ function PermissionsModal({ scopeType, id, title, onClose }: { scopeType: ScopeT
               rows.data.map((a) => (
                 <li key={a.id} className="flex items-center gap-3 px-3 py-2 text-sm">
                   <div className="mr-auto">
-                    <p className="font-medium text-slate-800">{a.user.name || a.user.email}</p>
+                    <p className="font-medium text-slate-800">
+                      {a.user.name || a.user.email} {a.user.id === info.user.id && <span className="text-xs font-normal text-slate-400">({t('users.you')})</span>}
+                    </p>
                     <p className="text-xs text-slate-500">{a.user.email}</p>
                   </div>
                   <Badge color="blue">{roleLabel(t, a.role)}</Badge>
+                  {/* Eigene Rechte entzieht nur jemand anderes (der Server lehnt es ebenfalls ab) */}
+                  {a.user.id === info.user.id ? (
+                    <span className="w-8" title={t('users.ownRolesHint')} />
+                  ) : (
                   <IconButton
                     label={t('common.remove')}
                     onClick={async () => {
@@ -192,6 +203,7 @@ function PermissionsModal({ scopeType, id, title, onClose }: { scopeType: ScopeT
                   >
                     <Trash2 className="h-4 w-4" />
                   </IconButton>
+                  )}
                 </li>
               ))
             ) : (
@@ -262,7 +274,44 @@ export function StructurePage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [progress, setProgress] = useState<{ done: number; total: number; current: string } | null>(null);
+  const [skipped, setSkipped] = useState<string[]>([]);
   const canStructure = !!structure.data?.canManageStructure;
+  const candidates = rotationCandidates(structure.data?.departments ?? []);
+
+  /**
+   * Alle empfohlenen Ordner nacheinander erneuern. Ordner mit unlesbaren Einträgen werden übersprungen
+   * (sie brauchen eine Einzelentscheidung), Fehler bei einem Ordner halten die übrigen nicht auf.
+   */
+  const rotateAll = async (folders: FolderInfo[]) => {
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    setSkipped([]);
+    const unreadable: string[] = [];
+    const failed: string[] = [];
+    let ok = 0;
+    try {
+      for (const [i, folder] of folders.entries()) {
+        setProgress({ done: i, total: folders.length, current: folder.path });
+        try {
+          await rotateFolderKey(info, keys, folder.id);
+          ok++;
+        } catch (e) {
+          if (e instanceof UnreadableItemsError) unreadable.push(folder.path);
+          else failed.push(`${folder.path}: ${errMsg(e)}`);
+        }
+      }
+    } finally {
+      await Promise.all(['structure', 'items'].map((k) => qc.invalidateQueries({ queryKey: [k] })));
+      setProgress(null);
+      setBusy(false);
+      setEditing(null);
+    }
+    if (ok > 0) setNotice(t('structure.rotateAllDone', { count: ok }));
+    setSkipped(unreadable);
+    if (failed.length > 0) setError(t('structure.rotateAllFailed', { list: failed.join('; ') }));
+  };
 
   const rotate = async (folder: FolderInfo, keepUnreadable = false) => {
     setBusy(true);
@@ -304,11 +353,18 @@ export function StructurePage() {
         description={t('structure.description')}
         help="structure"
         actions={
-          canStructure && (
-            <Button icon={<Plus className="h-4 w-4" />} onClick={() => setEditing({ kind: 'dept' })}>
-              {t('structure.newDepartment')}
-            </Button>
-          )
+          <>
+            {candidates.length > 1 && (
+              <Button variant="secondary" icon={<KeyRound className="h-4 w-4" />} onClick={() => setEditing({ kind: 'rotateAll', folders: candidates })}>
+                {t('structure.rotateAll', { count: candidates.length })}
+              </Button>
+            )}
+            {canStructure && (
+              <Button icon={<Plus className="h-4 w-4" />} onClick={() => setEditing({ kind: 'dept' })}>
+                {t('structure.newDepartment')}
+              </Button>
+            )}
+          </>
         }
       />
       {error && (
@@ -319,6 +375,11 @@ export function StructurePage() {
       {notice && (
         <Alert kind="success" className="mb-4">
           {notice}
+        </Alert>
+      )}
+      {skipped.length > 0 && (
+        <Alert kind="warning" className="mb-4" title={t('structure.rotateAllSkipped', { count: skipped.length })}>
+          {skipped.join(', ')}
         </Alert>
       )}
       {structure.isLoading ? (
@@ -436,6 +497,32 @@ export function StructurePage() {
         <ConfirmModal open loading={busy} title={t('structure.rotateTitle')} confirmLabel={t('structure.rotateKey')} onClose={() => setEditing(null)} onConfirm={() => rotate(editing.folder)}>
           <p>{t('structure.rotateText', { name: editing.folder.name, count: editing.folder.itemCount ?? 0 })}</p>
           <p className="mt-2 text-xs text-slate-500">{t('structure.rotateHint')}</p>
+        </ConfirmModal>
+      )}
+      {editing?.kind === 'rotateAll' && (
+        <ConfirmModal
+          open
+          loading={busy}
+          title={t('structure.rotateAllTitle')}
+          confirmLabel={t('structure.rotateAll', { count: editing.folders.length })}
+          onClose={() => !busy && setEditing(null)}
+          onConfirm={() => rotateAll(editing.folders)}
+        >
+          <p>{t('structure.rotateAllText', { count: editing.folders.length })}</p>
+          <ul className="my-3 max-h-48 list-disc overflow-auto pl-5 text-xs">
+            {editing.folders.map((f) => (
+              <li key={f.id}>
+                {f.path} <span className="text-slate-400">({t('structure.items', { count: f.itemCount ?? 0 })})</span>
+              </li>
+            ))}
+          </ul>
+          {progress ? (
+            <p className="text-sm font-medium text-slate-700" role="status">
+              {t('structure.rotateAllProgress', { done: progress.done + 1, total: progress.total, name: progress.current })}
+            </p>
+          ) : (
+            <p className="text-xs text-slate-500">{t('structure.rotateAllHint')}</p>
+          )}
         </ConfirmModal>
       )}
       {editing?.kind === 'rotateUnreadable' && (
