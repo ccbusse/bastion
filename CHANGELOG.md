@@ -7,6 +7,9 @@ Neue Einträge kommen unter *Unveröffentlicht*; `scripts/release.sh X.Y.Z` mach
 
 ## [Unveröffentlicht]
 
+### Geändert
+- README auf das Wesentliche gekürzt, mit Screenshots. Die ausführliche Betriebsanleitung (Installation, Aktualisieren, Backups, Rechtemodell, Browser-Erweiterung) steht jetzt in `docs/OPERATIONS.md` bzw. `docs/OPERATIONS.de.md`, Architektur und Entwicklung in `docs/DEVELOPMENT.md` bzw. `docs/DEVELOPMENT.de.md`. Das Installationspaket enthält die Betriebsanleitung.
+
 ## [2.6.0] – 2026-11-20
 
 ### Neu

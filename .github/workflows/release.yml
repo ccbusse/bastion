@@ -173,9 +173,9 @@ jobs:
           set -euo pipefail
           pkg="bastion-$VERSION"
           mkdir -p "$pkg/docs"
-          cp compose.yml .env.example README.md CHANGELOG.md LICENSE "$pkg/"
+          cp compose.yml .env.example README.md README.de.md CHANGELOG.md LICENSE "$pkg/"
           cp caddy/Caddyfile "$pkg/Caddyfile"
-          cp docs/SECURITY.md "$pkg/docs/"
+          cp docs/SECURITY.md docs/OPERATIONS.md docs/OPERATIONS.de.md "$pkg/docs/"
           cat digest-*.txt > "$pkg/IMAGES.txt"
           tar -czf "$pkg.tar.gz" "$pkg"
           sha256sum "$pkg.tar.gz" > "$pkg.tar.gz.sha256"
@@ -202,7 +202,7 @@ jobs:
             echo "curl -fsSL https://github.com/ccbusse/bastion/releases/download/$TAG/install.sh | bash"
             echo '```'
             echo
-            echo "Alternativ das Installationspaket. Signatur prüfen und Details: README, Abschnitte *Installation* und *Aktualisieren*."
+            echo "Alternativ das Installationspaket. Signatur prüfen und Details: docs/OPERATIONS.md (Deutsch: docs/OPERATIONS.de.md)."
           } > notes.md
           cat notes.md
       - name: Release anlegen

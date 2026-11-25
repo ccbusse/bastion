@@ -70,7 +70,7 @@ docker info >/dev/null 2>&1 || fail "Docker läuft nicht oder dieser Benutzer da
 
 mkdir -p "$DIR"
 cd "$DIR"
-[ -e .env ] && fail "In $(pwd) ist Bastion bereits eingerichtet (.env vorhanden). Aktualisieren: siehe README, Abschnitt \"Aktualisieren\"."
+[ -e .env ] && fail "In $(pwd) ist Bastion bereits eingerichtet (.env vorhanden). Aktualisieren: siehe https://github.com/ccbusse/bastion/blob/master/docs/OPERATIONS.de.md#aktualisieren."
 
 # ---------- Dateien ----------
 info "Lade compose.yml und .env.example aus $BASE_URL …"
@@ -170,7 +170,7 @@ if [ -n "$KEYFILE" ]; then
   info " • $KEYFILE enthält den PRIVATEN Schlüssel der Datenbank-Backups."
   info "   Zweimal offline aufbewahren (z. B. ausgedruckt und auf einem USB-Stick) und danach vom Server löschen."
 else
-  info " • Das Datenbank-Backup ist noch nicht eingerichtet (README, Abschnitt \"Datenbank-Backup\")."
+  info " • Das Datenbank-Backup ist noch nicht eingerichtet (https://github.com/ccbusse/bastion/blob/master/docs/OPERATIONS.de.md#datenbank-backup)."
 fi
 if [ -n "$PROXY" ]; then
   SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || true)

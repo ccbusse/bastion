@@ -33,7 +33,7 @@ recipients() {
     [[ $r == age1* ]] || { err "BACKUP_AGE_RECIPIENTS enthält keinen gültigen öffentlichen age-Schlüssel: ${r:0:12}…"; return 1; }
     out+=(-r "$r")
   done
-  [ ${#out[@]} -gt 0 ] || { err "BACKUP_AGE_RECIPIENTS ist leer – ohne öffentlichen Schlüssel wird nicht gesichert (Einrichtung: README, Abschnitt Datenbank-Backup)"; return 1; }
+  [ ${#out[@]} -gt 0 ] || { err "BACKUP_AGE_RECIPIENTS ist leer – ohne öffentlichen Schlüssel wird nicht gesichert (Einrichtung: https://github.com/ccbusse/bastion/blob/master/docs/OPERATIONS.de.md#datenbank-backup)"; return 1; }
   printf '%s\n' "${out[@]}"
 }
 

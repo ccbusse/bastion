@@ -905,7 +905,7 @@ export const en: Translation = {
       webdavUrl: 'Folder address',
       subfolder: 'Subfolder',
       subfolderHint: 'Relative to {{base}}; empty = directly there.',
-      folderInfo: '{{base}} is a directory inside the container. The administrator mounts the desired target there (EMERGENCY_BACKUP_PATH in .env, see README).',
+      folderInfo: '{{base}} is a directory inside the container. The administrator mounts the desired target there (EMERGENCY_BACKUP_PATH in .env, see the operating guide, section Emergency backup).',
       hostKeyInfo: 'On first connect Bastion remembers the server’s identity. If it changes later, the export fails until you deliberately accept the new identity.',
     },
     title: 'Automatic export',
