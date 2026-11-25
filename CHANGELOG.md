@@ -7,6 +7,14 @@ Neue Einträge kommen unter *Unveröffentlicht*; `scripts/release.sh X.Y.Z` mach
 
 ## [Unveröffentlicht]
 
+## [2.6.1] – 2026-11-25
+
+### Neu
+- Struktur: „Alle empfohlenen erneuern“ erneuert die Schlüssel aller zur Erneuerung markierten Ordner, die man verwaltet, nacheinander mit Fortschrittsanzeige. Ordner mit nicht lesbaren Einträgen werden übersprungen und zur Einzelentscheidung aufgelistet.
+
+### Behoben
+- Niemand kann sich mehr selbst Rechte entziehen: Die eigene Rollenzuweisung lässt sich nicht löschen, und eine Rolle, die man selbst trägt, lässt sich weder kürzen noch löschen. Das übernimmt jemand anderes. Bisher konnte sich z. B. ein Manager die eigene Zuweisung entfernen; das gelang zwar, das Rechte-Fenster meldete danach aber fälschlich einen Berechtigungsfehler.
+
 ### Geändert
 - README auf das Wesentliche gekürzt, mit Screenshots. Die ausführliche Betriebsanleitung (Installation, Aktualisieren, Backups, Rechtemodell, Browser-Erweiterung) steht jetzt in `docs/OPERATIONS.md` bzw. `docs/OPERATIONS.de.md`, Architektur und Entwicklung in `docs/DEVELOPMENT.md` bzw. `docs/DEVELOPMENT.de.md`. Das Installationspaket enthält die Betriebsanleitung.
 
