@@ -5,7 +5,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Bastion.Server.Services;
 
-public sealed record SystemSettings(bool RequireMfaForSystemAdmins = false, int AutoLockMinutes = 15);
+/// <param name="ExtensionAutoLockMinutes">Sperrzeit der Browser-Erweiterung (eigener Wert: sie wird oft und nur kurz geöffnet)</param>
+public sealed record SystemSettings(bool RequireMfaForSystemAdmins = false, int AutoLockMinutes = 15, int ExtensionAutoLockMinutes = 60);
 
 public sealed record SmtpSettings(string Host, int Port, string Security, string Username, string? PasswordEnc, string FromAddress, string FromName);
 
@@ -44,10 +45,13 @@ public sealed class SettingsService(BastionDb db, CryptoUtil crypto, SystemSetti
         return value;
     }
 
-    public async Task<SystemSettings> SetSystem(bool? requireMfaForSystemAdmins, int? autoLockMinutes)
+    public async Task<SystemSettings> SetSystem(bool? requireMfaForSystemAdmins, int? autoLockMinutes, int? extensionAutoLockMinutes = null)
     {
         var current = await GetSystem();
-        var value = new SystemSettings(requireMfaForSystemAdmins ?? current.RequireMfaForSystemAdmins, autoLockMinutes ?? current.AutoLockMinutes);
+        var value = new SystemSettings(
+            requireMfaForSystemAdmins ?? current.RequireMfaForSystemAdmins,
+            autoLockMinutes ?? current.AutoLockMinutes,
+            extensionAutoLockMinutes ?? current.ExtensionAutoLockMinutes);
         await Set("system", value);
         cache.Clear();
         return value;

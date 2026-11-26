@@ -370,7 +370,7 @@ public sealed class KeysController(BastionDb db, PermissionService perms, AuditS
     }
 
     /// <summary>Vertrauensanker des Benutzers für den aktiven Tenant sowie die aktuell vom Server gemeldeten Tenant-Schlüssel.</summary>
-    [AllowRestricted, HttpGet("anchor")]
+    [AllowRestricted, AllowExtension, HttpGet("anchor")]
     public async Task<object> Anchor()
     {
         var user = Auth.User;

@@ -223,7 +223,7 @@ public sealed partial class SystemController(
     }
 
     /// <summary>Wechselt den aktiven Tenant (nur Tenants, in denen der System-Admin Mitglied ist).</summary>
-    [Ok200, HttpPost("tenants/{id}/switch")]
+    [AllowExtension, Ok200, HttpPost("tenants/{id}/switch")]
     public async Task<object> SwitchTenant(Guid id)
     {
         if (!(await org.SysadminTenantIds(Auth.User.Id)).Contains(id)) throw ApiException.BadRequest("NOT_TENANT_MEMBER");
@@ -317,9 +317,9 @@ public sealed partial class SystemController(
     public async Task<object> PutSettings(SystemSettingsDto body)
     {
         var mfaRequiredBefore = (await settings.GetSystem()).RequireMfaForSystemAdmins;
-        var value = await settings.SetSystem(body.RequireMfaForSystemAdmins, body.AutoLockMinutes);
+        var value = await settings.SetSystem(body.RequireMfaForSystemAdmins, body.AutoLockMinutes, body.ExtensionAutoLockMinutes);
         await audit.Log(new AuditEntry("system.settings_updated", Actor: Actor.Of(Auth.User),
-            Metadata: new { requireMfaForSystemAdmins = body.RequireMfaForSystemAdmins, autoLockMinutes = body.AutoLockMinutes }, Meta: Meta));
+            Metadata: new { requireMfaForSystemAdmins = body.RequireMfaForSystemAdmins, autoLockMinutes = body.AutoLockMinutes, extensionAutoLockMinutes = body.ExtensionAutoLockMinutes }, Meta: Meta));
         if (mfaRequiredBefore && body.RequireMfaForSystemAdmins == false)
             await org.NotifySystemAdmins(new MailEvent(
                 $"Der System-Admin {Auth.User.Email} hat die 2FA-Pflicht für System-Admins abgeschaltet.",

@@ -7,6 +7,18 @@ Neue Einträge kommen unter *Unveröffentlicht*; `scripts/release.sh X.Y.Z` mach
 
 ## [Unveröffentlicht]
 
+### Neu
+- Web-App: Neu laden (F5) sperrt den Tresor nicht mehr. Die Schlüssel liegen dafür verschlüsselt im Speicher des Tabs; der Schlüssel dazu existiert nur auf dem Server und gehört zur Sitzung. Ein neuer Tab, Schließen des Tabs, Sperren, Abmelden und Ablauf der Sperrzeit verlangen weiterhin das Masterpasswort.
+- Browser-Erweiterung: System-Admins wechseln den Tenant über den Namen im Kopf des Popups.
+- Browser-Erweiterung: Suchbegriff und zuletzt geöffneter Eintrag bleiben bis zum Browser-Neustart erhalten, auch über das Schließen des Popups und das Sperren hinweg. Gelöscht wird die Suche über das X im Suchfeld oder mit Esc.
+- Systemeinstellungen: eigene Sperrzeit für die Browser-Erweiterung (Standard 60 Minuten, bis 480).
+
+### Geändert
+- Browser-Erweiterung: Jede Bedienung im Popup verlängert die automatische Sperre, nicht nur Öffnen und Kopieren. Solange sie entsperrt ist, hält sie ihre Anmeldung am Server aktiv, sodass nach dem Sperren nur das Masterpasswort nötig ist und keine neue Anmeldung.
+
+### Sicherheit
+- Browser-Erweiterung: Ordnerschlüssel werden wie in der Web-App nur mit gültigem Herkunftsnachweis verwendet.
+
 ## [2.7.0] – 2026-11-26
 
 ### Neu

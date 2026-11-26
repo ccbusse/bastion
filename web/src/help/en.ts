@@ -51,6 +51,7 @@ export const articlesEn: Article[] = [
       { h: 'Locking and sessions' },
       { list: [
         'Bastion locks the vault automatically after a period of inactivity and removes the keys from memory. To lock right away, use the lock icon at the bottom of the sidebar.',
+        'Reloading the page (F5) keeps the vault unlocked. A new tab, closing the tab and signing out require the master password again.',
         'Under [My account](/account) you see every signed-in browser and browser extension. Sign out unknown sessions there and then change your master password.',
         'Some actions are security-critical. Bastion then asks for your master password again; the confirmation is valid for five minutes.',
       ] },
@@ -160,6 +161,8 @@ export const articlesEn: Article[] = [
         'Logins are filled in only on click or with Ctrl+Shift+L, and only on the matching domain over HTTPS.',
         'The extension can search, show and copy. Editing happens in the web app.',
         'It locks after inactivity, when the computer is locked and when the browser restarts.',
+        'Your search and the last opened entry are kept until the browser restarts, even when you close the popup.',
+        'System admins switch the tenant via the name in the extension header.',
         'You can see and revoke every signed-in extension under [My account](/account).',
       ] },
       { p: 'Edge asks the first time whether to allow extensions from other stores. A Firefox version will follow.' },

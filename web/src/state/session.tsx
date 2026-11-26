@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { ApiError, get, post } from '../lib/api';
 import type { VaultKeys } from '../lib/crypto/account';
 import { wipe } from '../lib/crypto/encoding';
+import { clearUnlocked, noteActivity, restoreUnlocked, saveUnlocked } from '../lib/reloadStore';
 import type { SessionInfo } from '../lib/types';
 
 interface SessionCtx {
@@ -27,21 +28,36 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const qc = useQueryClient();
   const { i18n } = useTranslation();
 
+  const infoRef = useRef<SessionInfo | null>(null);
+
   const setKeys = useCallback((k: VaultKeys | null) => {
     if (keysRef.current && keysRef.current !== k) wipe(keysRef.current.accountKeyRaw, keysRef.current.personalKeyRaw);
     keysRef.current = k;
     setKeysState(k);
+    // Für ein Neuladen des Tabs verschlüsselt ablegen bzw. beim Sperren verwerfen (siehe reloadStore)
+    if (!k) clearUnlocked();
+    else if (infoRef.current) void saveUnlocked(infoRef.current, k, () => keysRef.current === k).catch(() => undefined);
   }, []);
 
   const refresh = useCallback(async () => {
     try {
       const s = await get<SessionInfo>('/auth/session');
+      infoRef.current = s;
+      // Nach einem Neuladen des Tabs: entsperrten Zustand wiederherstellen, bevor die Sperrseite erscheint
+      if (!keysRef.current) {
+        const restored = await restoreUnlocked(s);
+        if (restored && !keysRef.current) {
+          keysRef.current = restored;
+          setKeysState(restored);
+        }
+      }
       setInfo(s);
       setStatus('authenticated');
       if (s.user.locale && s.user.locale !== i18n.language && !localStorage.getItem('bastion.lang')) void i18n.changeLanguage(s.user.locale);
       return s;
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) {
+        infoRef.current = null;
         setInfo(null);
         setKeys(null);
         setStatus('anonymous');
@@ -82,6 +98,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     if (!keys) return;
     let timer = window.setTimeout(lock, autoLockMinutes * 60_000);
     const reset = () => {
+      noteActivity();
       window.clearTimeout(timer);
       timer = window.setTimeout(lock, autoLockMinutes * 60_000);
     };

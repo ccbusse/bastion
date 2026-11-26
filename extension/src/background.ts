@@ -1,7 +1,7 @@
 import { fillTab } from './lib/fill';
 import { isFillableUrl, matchesPage } from './lib/match';
 import { getSession, restrictSessionStorage } from './lib/storage';
-import { LOCK_ALARM, loadKeys, loadVault, lock, logEvent, sessionInfo, touch } from './lib/vault';
+import { KEEPALIVE_ALARM, LOCK_ALARM, keepAlive, loadKeys, loadVault, lock, logEvent, sessionInfo, touch } from './lib/vault';
 
 const CLIPBOARD_ALARM = 'bastion-clear-clipboard';
 
@@ -13,6 +13,7 @@ void restrictSessionStorage();
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === LOCK_ALARM) void lock();
   if (alarm.name === CLIPBOARD_ALARM) void clearClipboard();
+  if (alarm.name === KEEPALIVE_ALARM) void enforceLock().then(keepAlive);
 });
 chrome.idle.onStateChanged.addListener((state) => {
   if (state === 'locked') void lock();

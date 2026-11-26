@@ -47,6 +47,7 @@ public sealed class SystemSettingsDto
 {
     public bool? RequireMfaForSystemAdmins { get; init; }
     [Range(1, 240)] public int? AutoLockMinutes { get; init; }
+    [Range(1, 480)] public int? ExtensionAutoLockMinutes { get; init; }
 }
 
 public sealed class SmtpDto

@@ -7,8 +7,8 @@ import type { ItemType, SessionInfo, StructureInfo } from '../../../web/src/lib/
 import { copySecret } from '../lib/clipboard';
 import { fillTab } from '../lib/fill';
 import { isFillableUrl, matchesPage } from '../lib/match';
-import { getSettings, setSettings, type SearchScope } from '../lib/storage';
-import { loadVaultData, logEvent, type VaultItem } from '../lib/vault';
+import { getSession, getSettings, removeSession, setSession, setSettings, type SearchScope } from '../lib/storage';
+import { loadVaultData, logEvent, switchTenant, type VaultItem } from '../lib/vault';
 import { errorText, t } from './i18n';
 import { Button, cx, ErrorBox, IconButton, LogoIcon } from './ui';
 
@@ -19,8 +19,13 @@ function subtitle(i: VaultItem) {
   return o.username || o.cardholder || o.bankName || o.host || o.service || i.location;
 }
 
-/** Aktivität an den Service Worker melden (verlängert die automatische Sperre). */
+let lastTouch = 0;
+
+/** Aktivität an den Service Worker melden (verlängert die automatische Sperre, gedrosselt). */
 function touch() {
+  const now = Date.now();
+  if (now - lastTouch < 10_000) return;
+  lastTouch = now;
   void chrome.runtime.sendMessage({ type: 'touch' }).catch(() => undefined);
 }
 
@@ -203,7 +208,19 @@ function scopeFolders(structure: StructureInfo | null, dept: string, folder: str
 const selectCls =
   'scope-select h-9 min-w-0 flex-1 truncate rounded-lg border border-white/10 bg-white/10 px-2 text-[13px] text-white [color-scheme:dark] focus:border-gold-500 focus:outline-none disabled:opacity-40';
 
-export function VaultScreen({ info, keys, onLock, onLogout }: { info: SessionInfo; keys: VaultKeys; onLock: () => void; onLogout: () => void }) {
+export function VaultScreen({
+  info,
+  keys,
+  onLock,
+  onLogout,
+  onTenantSwitched,
+}: {
+  info: SessionInfo;
+  keys: VaultKeys;
+  onLock: () => void;
+  onLogout: () => void;
+  onTenantSwitched: () => void;
+}) {
   const [items, setItems] = useState<VaultItem[] | null>(null);
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
@@ -213,16 +230,32 @@ export function VaultScreen({ info, keys, onLock, onLogout }: { info: SessionInf
   const [structure, setStructure] = useState<StructureInfo | null>(null);
   // Suchbereich: dept "" = alle, "personal" = persönlicher Tresor, sonst Abteilung; folder "" = ganze Abteilung
   const [scope, setScope] = useState({ dept: '', folder: '' });
+  const [switching, setSwitching] = useState(false);
+
+  // Jede Bedienung im Popup verlängert die automatische Sperre
+  useEffect(() => {
+    document.addEventListener('pointerdown', touch, { passive: true });
+    document.addEventListener('keydown', touch, { passive: true });
+    return () => {
+      document.removeEventListener('pointerdown', touch);
+      document.removeEventListener('keydown', touch);
+    };
+  }, []);
 
   useEffect(() => {
     touch();
     void getSettings().then((s) => setVaultUrl(s.vaultUrl ?? ''));
     // Die URL des aktiven Tabs ist durch activeTab nur nach dem Öffnen des Popups bekannt
     void chrome.tabs.query({ active: true, currentWindow: true }).then(([t]) => setTab(t));
-    Promise.all([loadVaultData(info, keys, t.personal), getSettings()])
-      .then(([data, settings]) => {
+    // Suche und geöffneten Eintrag aus dem Sitzungsspeicher übernehmen (überstehen das Schließen des Popups)
+    void getSession().then((s) => s.popupQuery && setQuery(s.popupQuery));
+    Promise.all([loadVaultData(info, keys, t.personal), getSettings(), getSession()])
+      .then(([data, settings, session]) => {
         setItems(data.items);
         setStructure(data.structure);
+        const open = session.popupSelected && data.items.find((i) => i.id === session.popupSelected);
+        if (open) setSelected(open);
+        else if (session.popupSelected) void removeSession(['popupSelected']);
         // Gemerkte Auswahl nur übernehmen, wenn sie zu diesem Tenant gehört und noch existiert
         const saved = settings.scope;
         const tenantId = info.tenant?.id ?? null;
@@ -234,6 +267,28 @@ export function VaultScreen({ info, keys, onLock, onLogout }: { info: SessionInf
       })
       .catch((e) => setError(errorText(e)));
   }, [info, keys]);
+
+  const changeQuery = (q: string) => {
+    setQuery(q);
+    void (q ? setSession({ popupQuery: q }) : removeSession(['popupQuery']));
+  };
+  const openItem = (i: VaultItem | null) => {
+    setSelected(i);
+    void (i ? setSession({ popupSelected: i.id }) : removeSession(['popupSelected']));
+  };
+  const changeTenant = async (id: string) => {
+    if (id === info.tenant?.id) return;
+    setSwitching(true);
+    setError('');
+    try {
+      await switchTenant(id);
+      onTenantSwitched();
+    } catch (e) {
+      setError(errorText(e));
+      setSwitching(false);
+    }
+  };
+  const canSwitchTenant = info.permissions.isSystemAdmin && info.tenants.length > 1;
 
   const changeScope = (next: { dept: string; folder: string }) => {
     setScope(next);
@@ -260,7 +315,7 @@ export function VaultScreen({ info, keys, onLock, onLogout }: { info: SessionInf
   }, [items, query, scope.dept, allowedFolders]);
   const forPage = useMemo(() => (tab?.url && isFillableUrl(tab.url) ? (items ?? []).filter((i) => matchesPage(i, tab.url!)) : []), [items, tab]);
 
-  if (selected) return <Detail item={selected} tab={tab} vaultUrl={vaultUrl} onBack={() => setSelected(null)} />;
+  if (selected) return <Detail item={selected} tab={tab} vaultUrl={vaultUrl} onBack={() => openItem(null)} />;
 
   return (
     <div className="flex h-[540px] flex-col">
@@ -269,7 +324,25 @@ export function VaultScreen({ info, keys, onLock, onLogout }: { info: SessionInf
           <LogoIcon className="h-6 w-6" />
           <div className="min-w-0 flex-1">
             <p className="text-[12px] font-extrabold tracking-[0.28em]">BASTION</p>
-            {info.tenant && <p className="truncate text-[11px] text-brand-300">{info.tenant.name}</p>}
+            {canSwitchTenant ? (
+              <select
+                aria-label={t.switchTenant}
+                title={t.switchTenant}
+                value={info.tenant?.id ?? ''}
+                disabled={switching}
+                onChange={(e) => void changeTenant(e.target.value)}
+                className="tenant-select -ml-1 block max-w-full cursor-pointer truncate rounded bg-transparent px-1 text-[11px] text-brand-300 [color-scheme:dark] hover:bg-white/10 hover:text-white focus:outline-none focus-visible:ring-1 focus-visible:ring-gold-500 disabled:opacity-50"
+              >
+                {!info.tenant && <option value="">–</option>}
+                {info.tenants.map((x) => (
+                  <option key={x.id} value={x.id}>
+                    {x.name}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              info.tenant && <p className="truncate text-[11px] text-brand-300">{info.tenant.name}</p>
+            )}
           </div>
           <IconButton label={t.lock} onClick={onLock} className="text-brand-200 hover:bg-white/10 hover:text-white">
             <Lock className="h-4 w-4" />
@@ -283,12 +356,18 @@ export function VaultScreen({ info, keys, onLock, onLogout }: { info: SessionInf
           <input
             type="search"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => changeQuery(e.target.value)}
+            onKeyDown={(e) => e.key === 'Escape' && query && (e.preventDefault(), changeQuery(''))}
             placeholder={t.search}
             aria-label={t.search}
             autoFocus
-            className="h-10 w-full rounded-xl border border-white/10 bg-white/10 pl-9 pr-3 text-sm text-white placeholder:text-brand-300 focus:border-gold-500 focus:outline-none"
+            className="search-input h-10 w-full rounded-xl border border-white/10 bg-white/10 pl-9 pr-9 text-sm text-white placeholder:text-brand-300 focus:border-gold-500 focus:outline-none"
           />
+          {query && (
+            <IconButton label={t.clearSearch} onClick={() => changeQuery('')} className="absolute right-1 top-1/2 -translate-y-1/2 text-brand-200 hover:bg-white/10 hover:text-white">
+              <X className="h-4 w-4" />
+            </IconButton>
+          )}
         </div>
         <div className="mt-2 flex items-center gap-1.5">
           <select aria-label={t.scopeDept} value={scope.dept} onChange={(e) => changeScope({ dept: e.target.value, folder: '' })} className={cx(selectCls, 'flex-[1.25]')}>
@@ -336,7 +415,7 @@ export function VaultScreen({ info, keys, onLock, onLogout }: { info: SessionInf
             {forPage.length ? (
               <ul>
                 {forPage.map((i) => (
-                  <Row key={i.id} item={i} tab={tab} onOpen={() => setSelected(i)} onError={setError} />
+                  <Row key={i.id} item={i} tab={tab} onOpen={() => openItem(i)} onError={setError} />
                 ))}
               </ul>
             ) : (
@@ -352,7 +431,7 @@ export function VaultScreen({ info, keys, onLock, onLogout }: { info: SessionInf
             {filtered.length ? (
               <ul>
                 {filtered.map((i) => (
-                  <Row key={i.id} item={i} tab={tab} onOpen={() => setSelected(i)} onError={setError} />
+                  <Row key={i.id} item={i} tab={tab} onOpen={() => openItem(i)} onError={setError} />
                 ))}
               </ul>
             ) : (

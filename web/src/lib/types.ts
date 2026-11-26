@@ -39,7 +39,7 @@ export interface SessionInfo {
   onboarding?: { tourCompletedAt: string | null; checklistHiddenAt: string | null };
   permissions: { isSystemAdmin: boolean; isTenantAdmin: boolean; tenant: string[] };
   restrictions: { forcePasswordChange: boolean; pendingConfirmation: boolean; mfaSetupRequired: boolean };
-  session: { id: string; expiresAt: string; idleMinutes: number; autoLockMinutes: number };
+  session: { id: string; expiresAt: string; idleMinutes: number; autoLockMinutes: number; extensionAutoLockMinutes?: number };
 }
 
 export interface FolderInfo {

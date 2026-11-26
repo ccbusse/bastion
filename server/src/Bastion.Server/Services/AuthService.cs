@@ -340,7 +340,7 @@ public sealed partial class AuthService(
             restrictions,
             // Commit und Build-Datum nur für System-Admins (Hilfe bei der Fehlersuche)
             build = isSystemAdmin ? BuildInfo.Full : BuildInfo.Public,
-            session = new { id = session.Id, expiresAt = session.ExpiresAt, idleMinutes = config.SessionIdleMinutes, autoLockMinutes = system.AutoLockMinutes },
+            session = new { id = session.Id, expiresAt = session.ExpiresAt, idleMinutes = config.SessionIdleMinutes, autoLockMinutes = system.AutoLockMinutes, extensionAutoLockMinutes = system.ExtensionAutoLockMinutes },
         };
     }
 

@@ -1129,6 +1129,8 @@ export const en: Translation = {
     requireMfaHint: 'Strongly recommended (BSI ORP.4.A21).',
     autoLock: 'Auto-lock (minutes)',
     autoLockHint: 'The vault is locked after this period of inactivity and keys are removed from memory.',
+    extensionAutoLock: 'Browser extension auto-lock (minutes)',
+    extensionAutoLockHint: 'Any use of the extension extends the time. While it is unlocked, its sign-in stays active too. It locks immediately when the computer is locked.',
   },
   trust: {
     pinTitle: 'Confirm organization keys',

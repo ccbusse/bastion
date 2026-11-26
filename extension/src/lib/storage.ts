@@ -3,7 +3,7 @@
  * - storage.local (dauerhaft): nur unkritische Einstellungen (Tresor-URL, zuletzt genutzte E-Mail,
  *   gewählter Suchbereich als Kennungen von Abteilung/Ordner – keine Namen oder Inhalte)
  * - storage.session (nur im Arbeitsspeicher, beim Browser-Neustart gelöscht, für Content-Scripts gesperrt):
- *   Sitzungs-Token und entschlüsselte Kontoschlüssel
+ *   Sitzungs-Token, entschlüsselte Kontoschlüssel sowie Suchbegriff und zuletzt geöffneter Eintrag des Popups
  */
 
 /** Suchbereich im Popup: dept "" = alle, "personal" = persönlicher Tresor, sonst Abteilungs-ID; folder "" = alle Ordner */
@@ -30,6 +30,10 @@ export interface SessionState {
   lockAt?: number;
   /** Sperrzeit aus den Systemeinstellungen (Minuten) */
   autoLockMinutes?: number;
+  /** Suchbegriff im Popup (bleibt bis zum Löschen der Suche oder zum Browser-Neustart) */
+  popupQuery?: string;
+  /** ID des zuletzt geöffneten Eintrags (bis „Zurück“) */
+  popupSelected?: string;
 }
 
 export async function getSettings(): Promise<Settings> {
