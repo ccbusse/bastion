@@ -125,9 +125,18 @@ describe('Rollenverwalter (roles.manage + users.invite)', () => {
     assert.equal((await RM.patch(`/roles/${t1.roles.editor}`, { permissions: ['vault.manage'] })).status, 400);
   });
   it('kann sich keine Tresorrechte geben, die er nicht hat', async () => {
-    const role = (await RM.post('/roles', { name: `vaultmgr-${randomUUID().slice(0, 6)}`, permissions: ['vault.manage'] })).data;
-    assert.equal((await RM.post('/assignments', { userId: U.RM.id, roleId: role.id, scopeType: 'TENANT' })).status, 403);
-    assert.equal((await RM.post('/assignments', { userId: U.RM.id, roleId: role.id, scopeType: 'FOLDER', folderId: t1.f2 })).status, 403);
+    assert.equal((await RM.post('/assignments', { userId: U.RM.id, roleId: t1.roles.manager, scopeType: 'TENANT' })).status, 403);
+    assert.equal((await RM.post('/assignments', { userId: U.RM.id, roleId: t1.roles.manager, scopeType: 'FOLDER', folderId: t1.f2 })).status, 403);
+  });
+  it('eigene Rollen sind Verwaltungsrollen: keine Tresorrechte', async () => {
+    const r = await RM.post('/roles', { name: `vaultmgr-${randomUUID().slice(0, 6)}`, permissions: ['vault.manage'] });
+    assert.equal(r.status, 400);
+    assert.equal(r.data.message, 'ROLE_VAULT_PERMISSIONS');
+    const mixed = await RM.post('/roles', { name: `mixed-${randomUUID().slice(0, 6)}`, permissions: ['tenant.users.invite', 'vault.view'] });
+    assert.equal(mixed.status, 400);
+    const ok = (await RM.post('/roles', { name: `inviter-${randomUUID().slice(0, 6)}`, permissions: ['tenant.users.invite'] })).data;
+    assert.equal((await RM.patch(`/roles/${ok.id}`, { permissions: ['tenant.users.invite', 'vault.view'] })).status, 400);
+    assert.equal((await RM.del(`/roles/${ok.id}`)).status, 200);
   });
   it('kann die Admin-Zuweisung eines anderen nicht entfernen', async () => {
     const a = (await RM.get('/assignments?scopeType=TENANT')).data.find((x) => x.userId === U.A2.id);

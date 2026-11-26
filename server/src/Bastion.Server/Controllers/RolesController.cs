@@ -39,6 +39,15 @@ public sealed class RolesController(BastionDb db, PermissionService perms, Audit
     [HttpGet("permissions")]
     public object Catalog() => P.All;
 
+    /// <summary>
+    /// Tresorzugriff wird nur über die vier festen Zugriffsstufen (eingebaute Rollen) vergeben; eigene Rollen sind
+    /// Verwaltungsrollen. Ältere eigene Rollen dürfen ihre bisherigen Tresorrechte behalten, aber keine neuen dazubekommen.
+    /// </summary>
+    private static void AssertNoNewVaultPermissions(IEnumerable<string> permissions, IReadOnlyCollection<string> existing)
+    {
+        if (permissions.Any(p => P.IsVaultPermission(p) && !existing.Contains(p))) throw ApiException.BadRequest("ROLE_VAULT_PERMISSIONS");
+    }
+
     private Task<bool> HoldsRole(Guid tenantId, Guid roleId) =>
         db.RoleAssignments.AnyAsync(a => a.TenantId == tenantId && a.RoleId == roleId && a.UserId == Auth.User.Id);
 
@@ -57,6 +66,7 @@ public sealed class RolesController(BastionDb db, PermissionService perms, Audit
         var tenantId = TenantOf();
         ValidatePermissions(input.Permissions);
         await AssertRoleEditor(input.Permissions);
+        AssertNoNewVaultPermissions(input.Permissions, []);
         var role = new Role { TenantId = tenantId, Name = input.Name.Trim(), Description = input.Description?.Trim() ?? "", Permissions = input.Permissions };
         db.Roles.Add(role);
         try { await db.SaveChangesAsync(); }
@@ -74,6 +84,7 @@ public sealed class RolesController(BastionDb db, PermissionService perms, Audit
         if (role.IsSystem) throw ApiException.BadRequest("SYSTEM_ROLE_IMMUTABLE");
         if (input.Permissions is not null) ValidatePermissions(input.Permissions);
         var ctx = await AssertRoleEditor(role.Permissions.Concat(input.Permissions ?? []));
+        if (input.Permissions is not null) AssertNoNewVaultPermissions(input.Permissions, role.Permissions);
         // Rechte einer Rolle, die man selbst trägt, kann man nicht kürzen (das wäre ein Entzug eigener Rechte)
         if (input.Permissions is not null && role.Permissions.Except(input.Permissions).Any() && await HoldsRole(tenantId, role.Id))
             throw ApiException.BadRequest("ROLE_ASSIGNED_TO_SELF");

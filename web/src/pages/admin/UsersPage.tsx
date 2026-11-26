@@ -9,11 +9,24 @@ import { del, get, post } from '../../lib/api';
 import { openTenantAdminKeys, recoverUser } from '../../lib/crypto/account';
 import type { InviteResult, ScopeType, UserRow } from '../../lib/types';
 import { useCan, useUnlocked } from '../../state/session';
-import { distributePendingKeys } from '../../state/vault';
+import { afterAccessChange, type RotationResult } from '../../state/vault';
+import { RotationNotice } from '../../components/RotationNotice';
 import { ReauthModal } from '../settings/AccountPage';
 import { useOwnTenantFingerprint } from '../../components/TrustAnchor';
 import { organizationCodeOf } from '../../lib/crypto/trust';
-import { ConfirmUserModal, InviteResultAlert, roleLabel, StatusBadge, useAdminStructure, useRoles, useScopeLabel } from './shared';
+import {
+  AccessLevelPicker,
+  accessLevels,
+  AccessScopeSelect,
+  adminRoles,
+  ConfirmUserModal,
+  InviteResultAlert,
+  isAdminRole,
+  roleLabel,
+  StatusBadge,
+  useRoles,
+  useScopeLabel,
+} from './shared';
 
 /** Auswahl von Rolle + Geltungsbereich. */
 export function ScopeRolePicker({
@@ -25,37 +38,38 @@ export function ScopeRolePicker({
 }) {
   const { t } = useTranslation();
   const roles = useRoles();
-  const structure = useAdminStructure();
   const role = roles.data?.find((r) => r.id === value.roleId);
-  const tenantOnly = !!role?.permissions.some((p) => p.startsWith('tenant.'));
+  // Verwaltungsrollen gelten immer tenantweit, nur Zugriffsstufen haben einen Bereich
+  const tenantOnly = !!role && isAdminRole(role);
   return (
     <div className="grid gap-3 sm:grid-cols-2">
       <Field label={t('users.role')}>
         <Select value={value.roleId} onChange={(e) => onChange({ roleId: e.target.value, scope: value.scope })}>
           <option value="">{t('common.choose')}</option>
-          {roles.data?.map((r) => (
-            <option key={r.id} value={r.id}>
-              {roleLabel(t, r)}
-            </option>
-          ))}
+          <optgroup label={t('access.levelsGroup')}>
+            {accessLevels(roles.data).map((r) => (
+              <option key={r.id} value={r.id}>
+                {roleLabel(t, r)}
+              </option>
+            ))}
+          </optgroup>
+          <optgroup label={t('access.adminGroup')}>
+            {adminRoles(roles.data).map((r) => (
+              <option key={r.id} value={r.id}>
+                {roleLabel(t, r)}
+              </option>
+            ))}
+          </optgroup>
         </Select>
       </Field>
-      <Field label={t('users.scope')}>
-        <Select value={tenantOnly ? 'TENANT' : value.scope} disabled={tenantOnly} onChange={(e) => onChange({ roleId: value.roleId, scope: e.target.value })}>
-          <option value="TENANT">{t('scope.tenant')}</option>
-          {structure.data?.departments.map((d) => (
-            <optgroup key={d.id} label={d.name}>
-              <option value={`DEPARTMENT:${d.id}`}>
-                {t('scope.department')}: {d.name}
-              </option>
-              {d.folders.map((f) => (
-                <option key={f.id} value={`FOLDER:${f.id}`}>
-                  {t('scope.folder')}: {f.path}
-                </option>
-              ))}
-            </optgroup>
-          ))}
-        </Select>
+      <Field label={t('access.scope')}>
+        {tenantOnly ? (
+          <Select value="TENANT" disabled>
+            <option value="TENANT">{t('access.adminScope')}</option>
+          </Select>
+        ) : (
+          <AccessScopeSelect value={value.scope} onChange={(scope) => onChange({ roleId: value.roleId, scope })} />
+        )}
       </Field>
     </div>
   );
@@ -85,7 +99,7 @@ function InviteModal({ onClose }: { onClose: () => void }) {
     setBusy(true);
     setError(null);
     try {
-      const scope = role?.permissions.some((p) => p.startsWith('tenant.')) ? 'TENANT' : pick.scope;
+      const scope = role && isAdminRole(role) ? 'TENANT' : pick.scope;
       const r = await post<InviteResult>('/users/invite', {
         email: email.trim(),
         name: name.trim() || undefined,
@@ -142,81 +156,137 @@ function InviteModal({ onClose }: { onClose: () => void }) {
   );
 }
 
+type UserAssignment = NonNullable<UserRow['assignments']>[number];
+
+/**
+ * Rollen eines Benutzers in zwei Blöcken: Verwaltung (tenantweite Verwaltungsrollen) und Zugriff auf den Tresor
+ * (Zugriffsstufe je Bereich). Eigene Zuweisungen kann nur jemand anderes entfernen.
+ */
 function AssignmentsModal({ user, onClose }: { user: UserRow; onClose: () => void }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const { info, keys } = useUnlocked();
   const scopeLabel = useScopeLabel();
   const roles = useRoles();
-  const [pick, setPick] = useState({ roleId: '', scope: 'TENANT' });
-  const [busy, setBusy] = useState(false);
+  const [adminPick, setAdminPick] = useState('');
+  const [access, setAccess] = useState({ roleId: '', scope: 'TENANT' });
+  const [busy, setBusy] = useState<'admin' | 'access' | null>(null);
   const [error, setError] = useState<unknown>(null);
+  const [rotation, setRotation] = useState<RotationResult | null>(null);
   const users = useQuery({ queryKey: ['users'], queryFn: () => get<UserRow[]>('/users') });
   const current = users.data?.find((u) => u.id === user.id) ?? user;
   const isSelf = user.id === info.user.id;
+  const roleById = new Map((roles.data ?? []).map((r) => [r.id, r]));
+  const isAdminAssignment = (a: UserAssignment) => {
+    const r = roleById.get(a.roleId);
+    return r ? isAdminRole(r) : false;
+  };
+  const adminAssignments = current.assignments?.filter(isAdminAssignment) ?? [];
+  const accessAssignments = current.assignments?.filter((a) => !isAdminAssignment(a)) ?? [];
+  const accessScopeLabel = (a: UserAssignment) => (a.scopeType === 'TENANT' ? t('scope.allDepartments') : scopeLabel(a.scopeType, a.departmentId, a.folderId));
 
-  const after = async () => {
-    await distributePendingKeys(info, keys).catch(() => 0);
+  // Übersprungene Ordner nur nach einem Entzug melden, sonst stünde der Hinweis bei jeder Freigabe erneut da
+  const after = async (revoked = false) => {
+    const r = await afterAccessChange(info, keys);
+    setRotation(revoked ? r : { ...r, skipped: [] });
     await Promise.all(['users', 'structure', 'items'].map((k) => qc.invalidateQueries({ queryKey: [k] })));
   };
 
-  const add = async () => {
-    setBusy(true);
+  const add = async (kind: 'admin' | 'access') => {
+    setBusy(kind);
     setError(null);
     try {
-      const role = roles.data?.find((r) => r.id === pick.roleId);
-      const scope = role?.permissions.some((p) => p.startsWith('tenant.')) ? 'TENANT' : pick.scope;
-      await post('/assignments', { userId: user.id, roleId: pick.roleId, ...scopeToPayload(scope) });
-      setPick({ roleId: '', scope: 'TENANT' });
+      if (kind === 'admin') await post('/assignments', { userId: user.id, roleId: adminPick, scopeType: 'TENANT' });
+      else await post('/assignments', { userId: user.id, roleId: access.roleId, ...scopeToPayload(access.scope) });
+      if (kind === 'admin') setAdminPick('');
+      else setAccess({ roleId: '', scope: 'TENANT' });
       await after();
     } catch (e) {
       setError(e);
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   };
 
+  const remove = async (a: UserAssignment) => {
+    setError(null);
+    try {
+      await del(`/assignments/${a.id}`);
+      await after(true);
+    } catch (e) {
+      setError(e);
+    }
+  };
+
+  const list = (items: UserAssignment[], label: (a: UserAssignment) => string, empty: string) => (
+    <ul className="divide-y divide-slate-100 rounded-md border border-slate-200">
+      {items.length ? (
+        items.map((a) => (
+          <li key={a.id} className="flex items-center gap-3 px-3 py-2 text-sm">
+            <span className="font-medium text-slate-800">{roleLabel(t, { key: a.roleKey, name: a.roleName })}</span>
+            <span className="mr-auto text-slate-500">{label(a)}</span>
+            {/* Eigene Rechte entzieht nur jemand anderes (der Server lehnt es ebenfalls ab) */}
+            {!isSelf && (
+              <IconButton label={t('common.remove')} onClick={() => remove(a)}>
+                <Trash2 className="h-4 w-4" />
+              </IconButton>
+            )}
+          </li>
+        ))
+      ) : (
+        <li className="px-3 py-3 text-sm text-slate-400">{empty}</li>
+      )}
+    </ul>
+  );
+
   return (
     <Modal open onClose={onClose} title={t('users.rolesOf', { name: user.name || user.email })} size="lg" footer={<Button onClick={onClose}>{t('common.done')}</Button>}>
-      <div className="space-y-5">
+      <div className="space-y-6">
         <ErrorAlert error={error} />
-        <ul className="divide-y divide-slate-100 rounded-md border border-slate-200">
-          {current.assignments?.length ? (
-            current.assignments.map((a) => (
-              <li key={a.id} className="flex items-center gap-3 px-3 py-2 text-sm">
-                <span className="font-medium text-slate-800">{roleLabel(t, { key: a.roleKey, name: a.roleName })}</span>
-                <span className="mr-auto text-slate-500">{scopeLabel(a.scopeType, a.departmentId, a.folderId)}</span>
-                {/* Eigene Rechte entzieht nur jemand anderes (der Server lehnt es ebenfalls ab) */}
-                {!isSelf && (
-                <IconButton
-                  label={t('common.remove')}
-                  onClick={async () => {
-                    setError(null);
-                    try {
-                      await del(`/assignments/${a.id}`);
-                      await after();
-                    } catch (e) {
-                      setError(e);
-                    }
-                  }}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </IconButton>
-                )}
-              </li>
-            ))
-          ) : (
-            <li className="px-3 py-3 text-sm text-slate-400">{t('users.noRoles')}</li>
-          )}
-        </ul>
+        <RotationNotice result={rotation} />
         {isSelf && <p className="text-xs text-slate-500">{t('users.ownRolesHint')}</p>}
-        <div className="space-y-3 rounded-md bg-slate-50 p-4">
-          <p className="text-sm font-medium text-slate-700">{t('users.addRole')}</p>
-          <ScopeRolePicker value={pick} onChange={setPick} />
-          <Button size="sm" icon={<Plus className="h-4 w-4" />} onClick={add} loading={busy} disabled={!pick.roleId}>
-            {t('common.add')}
-          </Button>
-        </div>
+
+        <section className="space-y-3">
+          <div>
+            <h3 className="text-sm font-semibold text-slate-800">{t('access.accessTitle')}</h3>
+            <p className="text-xs text-slate-500">{t('access.accessHint')}</p>
+          </div>
+          {list(accessAssignments, accessScopeLabel, t('access.noAccess'))}
+          <div className="space-y-3 rounded-md bg-slate-50 p-4">
+            <AccessLevelPicker roles={accessLevels(roles.data)} value={access.roleId} onChange={(roleId) => setAccess((s) => ({ ...s, roleId }))} />
+            <Field label={t('access.scope')}>
+              <AccessScopeSelect value={access.scope} onChange={(scope) => setAccess((s) => ({ ...s, scope }))} />
+            </Field>
+            <Button size="sm" icon={<Plus className="h-4 w-4" />} onClick={() => add('access')} loading={busy === 'access'} disabled={!access.roleId}>
+              {t('access.grant')}
+            </Button>
+          </div>
+        </section>
+
+        <section className="space-y-3">
+          <div>
+            <h3 className="text-sm font-semibold text-slate-800">{t('access.adminTitle')}</h3>
+            <p className="text-xs text-slate-500">{t('access.adminHint')}</p>
+          </div>
+          {list(adminAssignments, () => '', t('access.noAdmin'))}
+          <div className="flex flex-wrap items-end gap-3 rounded-md bg-slate-50 p-4">
+            <div className="min-w-56 flex-1">
+              <Field label={t('access.adminRole')}>
+                <Select value={adminPick} onChange={(e) => setAdminPick(e.target.value)}>
+                  <option value="">{t('common.choose')}</option>
+                  {adminRoles(roles.data).map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {roleLabel(t, r)}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            </div>
+            <Button size="sm" icon={<Plus className="h-4 w-4" />} onClick={() => add('admin')} loading={busy === 'admin'} disabled={!adminPick}>
+              {t('common.add')}
+            </Button>
+          </div>
+        </section>
       </div>
     </Modal>
   );
@@ -370,6 +440,8 @@ export function UsersPage() {
   const errMsg = useErrorMessage();
   const users = useQuery({ queryKey: ['users'], queryFn: () => get<UserRow[]>('/users') });
   const scopeLabel = useScopeLabel();
+  const allRoles = useRoles();
+  const roleById = new Map((allRoles.data ?? []).map((r) => [r.id, r]));
   const [inviteOpen, setInviteOpen] = useState(false);
   const [dialog, setDialog] = useState<Dialog>(null);
   const [message, setMessage] = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
@@ -379,9 +451,11 @@ export function UsersPage() {
   const [disableConfirm, setDisableConfirm] = useState<UserRow | null>(null);
   const [resetMfa, setResetMfa] = useState<UserRow | null>(null);
 
+  const [rotation, setRotation] = useState<RotationResult | null>(null);
+  // Nach Deaktivieren/Löschen: Schlüssel verteilen und betroffene Ordner, die man verwaltet, gleich erneuern
   const refresh = async () => {
-    await distributePendingKeys(info, keys).catch(() => 0);
-    await qc.invalidateQueries({ queryKey: ['users'] });
+    setRotation(await afterAccessChange(info, keys));
+    await qc.invalidateQueries();
   };
 
   const simple = async (user: UserRow, kind: string) => {
@@ -433,6 +507,7 @@ export function UsersPage() {
           {message.text}
         </Alert>
       )}
+      <RotationNotice result={rotation} onClose={() => setRotation(null)} className="mb-4" />
       <InviteResultAlert result={inviteResult} organizationCode={tenantCode} />
       {unendorsed.length > 0 && (
         <Card title={t('users.endorseListTitle', { count: unendorsed.length })} className="mb-6 border-gold-400">
@@ -511,14 +586,25 @@ export function UsersPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex max-w-sm flex-wrap gap-1">
-                        {u.assignments?.map((a) => (
-                          <Badge key={a.id} color={a.scopeType === 'TENANT' ? 'blue' : 'gray'}>
-                            <span title={scopeLabel(a.scopeType, a.departmentId, a.folderId)}>
-                              {roleLabel(t, { key: a.roleKey, name: a.roleName })}
-                              {a.scopeType !== 'TENANT' && <span className="ml-1 opacity-60">· {scopeLabel(a.scopeType, a.departmentId, a.folderId).split(': ')[1]}</span>}
-                            </span>
-                          </Badge>
-                        ))}
+                        {u.assignments?.map((a) => {
+                          const role = roleById.get(a.roleId);
+                          // Verwaltungsrollen gold, Zugriffsstufen blau mit Bereich ("alle Abteilungen", Abteilung oder Ordner)
+                          if (role && isAdminRole(role))
+                            return (
+                              <Badge key={a.id} color="gold">
+                                {roleLabel(t, { key: a.roleKey, name: a.roleName })}
+                              </Badge>
+                            );
+                          const where = a.scopeType === 'TENANT' ? t('scope.allDepartments') : scopeLabel(a.scopeType, a.departmentId, a.folderId).split(': ')[1];
+                          return (
+                            <Badge key={a.id} color="blue">
+                              <span title={a.scopeType === 'TENANT' ? t('scope.allDepartments') : scopeLabel(a.scopeType, a.departmentId, a.folderId)}>
+                                {roleLabel(t, { key: a.roleKey, name: a.roleName })}
+                                <span className="ml-1 opacity-60">· {where}</span>
+                              </span>
+                            </Badge>
+                          );
+                        })}
                       </div>
                     </td>
                     <td className="px-4 py-3">{u.totpEnabled ? <Badge color="green">{t('common.on')}</Badge> : <Badge>{t('common.off')}</Badge>}</td>
