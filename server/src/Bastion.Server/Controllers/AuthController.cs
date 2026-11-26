@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Bastion.Server.Controllers;
 
 [Route("api/auth")]
-public sealed class AuthController(AuthService auth, SessionService sessions, BastionDb db, AuditService audit, AppConfig config) : BastionController
+public sealed class AuthController(AuthService auth, SessionService sessions, BastionDb db, AuditService audit, AppConfig config, CryptoUtil crypto) : BastionController
 {
     // Je IP-Adresse und Minute. Bewusst großzügig: Hinter einer gemeinsamen Büro-Adresse (NAT, Proxy) melden sich morgens
     // viele Personen gleichzeitig an. Das Raten von Passwörtern begrenzen die Sperren je Konto (siehe LoginThrottle),
@@ -72,6 +72,18 @@ public sealed class AuthController(AuthService auth, SessionService sessions, Ba
 
     [AllowRestricted, AllowExtension, HttpGet("session")]
     public Task<object> Session() => auth.SessionInfo(Auth);
+
+    /// <summary>
+    /// Schlüssel, mit dem die Web-App ihre entsperrten Kontoschlüssel für ein Neuladen des Tabs verschlüsselt im
+    /// sessionStorage ablegt. Er existiert nur auf dem Server und gehört zu genau dieser Sitzung: Abmelden, Ablauf oder
+    /// Widerruf machen die Ablage im Browser wertlos, und die Ablage allein (z. B. aus dem Browserprofil) verrät nichts.
+    /// </summary>
+    [AllowRestricted, HttpGet("session/reload-key")]
+    public object ReloadKey()
+    {
+        Response.Headers.CacheControl = "no-store";
+        return new { key = Convert.ToBase64String(crypto.HmacBytes("bastion:reload-key:v1", Auth.Session.Id.ToString("N"), 32)) };
+    }
 
     [AllowRestricted, Ok200, HttpPost("change-password")]
     public async Task<object> ChangePassword(ChangePasswordDto body)

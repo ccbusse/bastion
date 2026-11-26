@@ -1,7 +1,7 @@
-import { unlockWithEncKey, type ProtectedKeys, type VaultKeys } from '../../../web/src/lib/crypto/account';
+import { keysFromRaw, unlockWithEncKey, type ProtectedKeys, type VaultKeys } from '../../../web/src/lib/crypto/account';
 import { b64, unb64 } from '../../../web/src/lib/crypto/encoding';
-import { importAccountSignKey } from '../../../web/src/lib/crypto/trust';
-import { decryptBytes, deriveLoginKeys, importAesKey, importPrivateKey, rsaUnwrap, type KdfParams } from '../../../web/src/lib/crypto/primitives';
+import { folderKeyTrusted, openAnchor, type FolderKeyPackage, type TenantAnchor } from '../../../web/src/lib/crypto/trust';
+import { deriveLoginKeys, importAesKey, rsaUnwrap, type KdfParams } from '../../../web/src/lib/crypto/primitives';
 import { decryptItem, type ItemKeys } from '../../../web/src/lib/items';
 import type { DecryptedItem, EncryptedItem, SessionInfo, StructureInfo } from '../../../web/src/lib/types';
 import { ApiError, api, normalizeVaultUrl } from './api';
@@ -10,6 +10,11 @@ import { clearSession, getSession, getSettings, removeSession, setSession, setSe
 export type VaultState = 'setup' | 'login' | 'mfa' | 'locked' | 'unlocked';
 
 const LOCK_ALARM = 'bastion-auto-lock';
+/** Hält die Server-Sitzung am Leben, solange die Erweiterung entsperrt ist (Leerlauf-Timeout des Servers) */
+const KEEPALIVE_ALARM = 'bastion-keepalive';
+
+/** Sperrzeit der Erweiterung aus den Systemeinstellungen (ältere Server: allgemeine Sperrzeit). */
+const lockMinutes = (info: SessionInfo) => info.session.extensionAutoLockMinutes ?? info.session.autoLockMinutes;
 
 /** Zustand der Erweiterung, ohne den Server zu fragen. */
 export async function currentState(): Promise<VaultState> {
@@ -71,7 +76,10 @@ export async function verifyMfa(code: string, encKey: CryptoKey) {
 
 export async function sessionInfo() {
   try {
-    return await api<SessionInfo>('/auth/session');
+    const info = await api<SessionInfo>('/auth/session');
+    // Geänderte Sperrzeit ab der nächsten Aktivität übernehmen
+    await setSession({ autoLockMinutes: lockMinutes(info) });
+    return info;
   } catch (e) {
     // Abgelaufene oder widerrufene Sitzung: neu anmelden
     if (e instanceof ApiError && e.status === 401) await clearSession();
@@ -83,7 +91,7 @@ export async function sessionInfo() {
 async function completeUnlock(encKey: CryptoKey) {
   const info = await sessionInfo();
   const keys = await unlockWithEncKey(encKey, info.keys as ProtectedKeys);
-  await setSession({ accountKeyRaw: b64(keys.accountKeyRaw), personalKeyRaw: b64(keys.personalKeyRaw), autoLockMinutes: info.session.autoLockMinutes });
+  await setSession({ accountKeyRaw: b64(keys.accountKeyRaw), personalKeyRaw: b64(keys.personalKeyRaw), autoLockMinutes: lockMinutes(info) });
   keys.accountKeyRaw.fill(0);
   keys.personalKeyRaw.fill(0);
   await touch();
@@ -101,14 +109,17 @@ export async function unlock(password: string) {
 export async function loadKeys(info: SessionInfo): Promise<VaultKeys | null> {
   const s = await getSession();
   if (!s.accountKeyRaw || !s.personalKeyRaw) return null;
-  const accountKeyRaw = unb64(s.accountKeyRaw);
-  const personalKeyRaw = unb64(s.personalKeyRaw);
-  const pkcs8 = await decryptBytes(await importAesKey(accountKeyRaw), info.keys.protectedPrivateKey, 'bastion:private-key');
-  const privateKey = await importPrivateKey(pkcs8);
   // Die Erweiterung liest nur und gibt keine Schlüssel weiter; der Signierschlüssel gehört lediglich zum gemeinsamen Schlüsselsatz
-  const signKey = await importAccountSignKey(pkcs8);
-  pkcs8.fill(0);
-  return { accountKeyRaw, personalKeyRaw, personalKey: await importAesKey(personalKeyRaw), privateKey, signKey, publicKey: info.keys.publicKey };
+  return keysFromRaw(unb64(s.accountKeyRaw), unb64(s.personalKeyRaw), info.keys);
+}
+
+/** Vertrauensanker des aktiven Tenants (vom eigenen Browser angelegt, mit dem Kontoschlüssel versiegelt). */
+async function loadAnchor(info: SessionInfo, keys: VaultKeys): Promise<TenantAnchor | null> {
+  if (!info.tenant) return null;
+  const res = await api<{ anchor: string | null }>('/keys/anchor');
+  if (!res.anchor) return null;
+  // Nicht entschlüsselbar: manipuliert, dann gelten nur selbst signierte Schlüssel
+  return openAnchor(keys.accountKeyRaw, info.tenant.id, res.anchor).catch(() => null);
 }
 
 export interface VaultItem extends DecryptedItem {
@@ -122,11 +133,24 @@ export async function loadVault(info: SessionInfo, keys: VaultKeys, personalLabe
 
 /** Einträge und die sichtbare Struktur (Abteilungen, Ordnerbaum) für die Bereichsauswahl. */
 export async function loadVaultData(info: SessionInfo, keys: VaultKeys, personalLabel: string): Promise<{ items: VaultItem[]; structure: StructureInfo }> {
-  const [items, wrapped, structure] = await Promise.all([
+  const [items, allWrapped, structure, anchor] = await Promise.all([
     api<EncryptedItem[]>('/items'),
-    api<{ folderId: string; wrappedKey: string; wrappedSecretKey: string | null }[]>('/keys/folders'),
+    api<FolderKeyPackage[]>('/keys/folders'),
     info.tenant ? api<StructureInfo>('/structure') : Promise.resolve({ departments: [] } as StructureInfo),
+    loadAnchor(info, keys),
   ]);
+  // Wie in der Web-App: nur Schlüssel mit gültigem Herkunftsnachweis verwenden. Sonst könnte jemand mit Schreibzugriff
+  // auf die Datenbank einen eigenen Ordnerschlüssel unterschieben. Schlüssel aus der Zeit davor gelten nur, solange der
+  // Browser sie noch nicht übernommen hat (Vermerk im Vertrauensanker).
+  const legacyAllowed = !!anchor && !anchor.folderKeyAuth;
+  const self = { userId: info.user.id, publicKey: keys.publicKey };
+  const wrapped = (
+    await Promise.all(
+      allWrapped
+        .filter((w) => w.tenantId === info.tenant?.id)
+        .map(async (w) => ((w.signature ? await folderKeyTrusted(self, anchor, w) : legacyAllowed) ? w : null)),
+    )
+  ).filter((w): w is FolderKeyPackage => !!w);
   // Übersicht mit dem Ordnerschlüssel, Geheimteil mit dem eigenen Geheim-Schlüssel (ältere Ordner: Ordnerschlüssel)
   const folderKeys = new Map<string, ItemKeys>();
   await Promise.all(
@@ -173,18 +197,37 @@ export async function touch() {
   const lockAt = Date.now() + minutes * 60_000;
   await setSession({ lockAt });
   await chrome.alarms.create(LOCK_ALARM, { when: lockAt });
+  if (!(await chrome.alarms.get(KEEPALIVE_ALARM))) await chrome.alarms.create(KEEPALIVE_ALARM, { periodInMinutes: 4 });
+}
+
+/** Server-Sitzung auffrischen, solange entsperrt; danach läuft sie nach dem Leerlauf-Timeout des Servers ab. */
+export async function keepAlive() {
+  const s = await getSession();
+  if (!s.token || !s.accountKeyRaw || !s.lockAt || Date.now() >= s.lockAt) {
+    await chrome.alarms.clear(KEEPALIVE_ALARM);
+    return;
+  }
+  await sessionInfo().catch(() => undefined);
 }
 
 /** Sperren: Schlüssel verwerfen, Sitzung bleibt bestehen (Entsperren nur mit Masterpasswort). */
 export async function lock() {
   await removeSession(['accountKeyRaw', 'personalKeyRaw', 'lockAt']);
   await chrome.alarms.clear(LOCK_ALARM);
+  await chrome.alarms.clear(KEEPALIVE_ALARM);
+}
+
+/** Aktiven Tenant wechseln (nur System-Admins, gilt auch für die Web-App). */
+export async function switchTenant(id: string) {
+  await api(`/system/tenants/${id}/switch`, 'POST', {});
+  await removeSession(['popupQuery', 'popupSelected']);
 }
 
 export async function logout() {
   await api('/auth/logout', 'POST', {}).catch(() => undefined);
   await clearSession();
   await chrome.alarms.clear(LOCK_ALARM);
+  await chrome.alarms.clear(KEEPALIVE_ALARM);
 }
 
-export { LOCK_ALARM };
+export { KEEPALIVE_ALARM, LOCK_ALARM };

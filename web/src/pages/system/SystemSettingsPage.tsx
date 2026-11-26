@@ -13,6 +13,7 @@ import { SmtpPage } from './SmtpPage';
 interface Settings {
   requireMfaForSystemAdmins: boolean;
   autoLockMinutes: number;
+  extensionAutoLockMinutes: number;
 }
 
 const TABS = ['general', 'smtp', 'transfer', 'report'] as const;
@@ -160,7 +161,7 @@ function GeneralSettings() {
   const qc = useQueryClient();
   const { refresh } = useSession();
   const settings = useQuery({ queryKey: ['system-settings'], queryFn: () => get<Settings>('/system/settings') });
-  const [form, setForm] = useState<Settings>({ requireMfaForSystemAdmins: false, autoLockMinutes: 15 });
+  const [form, setForm] = useState<Settings>({ requireMfaForSystemAdmins: false, autoLockMinutes: 15, extensionAutoLockMinutes: 60 });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [saved, setSaved] = useState(false);
@@ -181,6 +182,16 @@ function GeneralSettings() {
         />
         <Field label={t('systemSettings.autoLock')} hint={t('systemSettings.autoLockHint')}>
           <Input type="number" min={1} max={240} value={form.autoLockMinutes} onChange={(e) => setForm((f) => ({ ...f, autoLockMinutes: Number(e.target.value) }))} className="max-w-32" />
+        </Field>
+        <Field label={t('systemSettings.extensionAutoLock')} hint={t('systemSettings.extensionAutoLockHint')}>
+          <Input
+            type="number"
+            min={1}
+            max={480}
+            value={form.extensionAutoLockMinutes}
+            onChange={(e) => setForm((f) => ({ ...f, extensionAutoLockMinutes: Number(e.target.value) }))}
+            className="max-w-32"
+          />
         </Field>
         <Button
           loading={busy}

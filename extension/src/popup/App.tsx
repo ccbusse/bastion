@@ -57,6 +57,10 @@ export function App() {
             await logout();
             await refresh();
           }}
+          onTenantSwitched={() => {
+            setView({ kind: 'loading' });
+            void refresh();
+          }}
         />
       );
     case 'restricted':

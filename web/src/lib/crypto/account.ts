@@ -104,6 +104,11 @@ export async function unlockWithEncKey(encKey: CryptoKey, p: ProtectedKeys): Pro
     throw new WrongPasswordError();
   }
   const personalKeyRaw = await decryptBytes(encKey, p.protectedPersonalKey, AAD.personalKey);
+  return keysFromRaw(accountKeyRaw, personalKeyRaw, p);
+}
+
+/** Vollständigen Schlüsselsatz aus den bereits entschlüsselten Konto- und Persönlich-Schlüsseln aufbauen. */
+export async function keysFromRaw(accountKeyRaw: Bytes, personalKeyRaw: Bytes, p: Pick<ProtectedKeys, 'protectedPrivateKey' | 'publicKey'>): Promise<VaultKeys> {
   const pkcs8 = await decryptBytes(await importAesKey(accountKeyRaw), p.protectedPrivateKey, AAD.privateKey);
   const privateKey = await importPrivateKey(pkcs8);
   const signKey = await importAccountSignKey(pkcs8);

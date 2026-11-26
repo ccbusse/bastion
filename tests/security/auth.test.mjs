@@ -86,6 +86,22 @@ describe('Sessions', () => {
   });
 });
 
+describe('Reload-Schlüssel der Web-App', () => {
+  it('gehört zur Sitzung und verfällt mit ihr', async () => {
+    const a = await signedIn('ED');
+    const first = await a.get('/auth/session/reload-key');
+    assert.equal(first.status, 200);
+    assert.equal(first.headers.get('cache-control'), 'no-store');
+    assert.equal(Buffer.from(first.data.key, 'base64').length, 32);
+    assert.equal((await a.get('/auth/session/reload-key')).data.key, first.data.key);
+    const other = await signedIn('ED');
+    assert.notEqual((await other.get('/auth/session/reload-key')).data.key, first.data.key);
+    const cookie = a.cookie;
+    await a.post('/auth/logout');
+    assert.equal((await new Actor('x', 'x').req('GET', '/auth/session/reload-key', undefined, { headers: { cookie } })).status, 401);
+  });
+});
+
 describe('Browser-Erweiterung', () => {
   it('erhält ein Bearer-Token statt Cookie und nur freigegebene Endpunkte', async () => {
     const ext = as('ED');
@@ -95,6 +111,10 @@ describe('Browser-Erweiterung', () => {
     assert.equal((await ext.get('/items')).status, 200);
     assert.equal((await ext.post('/items', {})).status, 403);
     assert.equal((await ext.get('/users')).status, 403);
+    // Vertrauensanker lesen (Prüfung der Ordnerschlüssel), Tenant-Wechsel nur für System-Admins, kein Reload-Schlüssel
+    assert.equal((await ext.get('/keys/anchor')).status, 200);
+    assert.equal((await ext.post(`/system/tenants/00000000-0000-0000-0000-000000000000/switch`, {})).status, 403);
+    assert.equal((await ext.get('/auth/session/reload-key')).status, 403);
     assert.equal((await new Actor('x', 'x').req('GET', '/auth/session', undefined, { headers: { cookie: `bastion_sid=${ext.bearer}` } })).status, 401);
   });
   it('Web-Cookie taugt nicht als Bearer-Token', async () => {

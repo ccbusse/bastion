@@ -51,6 +51,7 @@ export const articlesDe: Article[] = [
       { h: 'Sperren und Sitzungen' },
       { list: [
         'Bastion sperrt den Tresor nach einiger Zeit ohne Aktivität automatisch und entfernt die Schlüssel aus dem Speicher. Sofort sperren können Sie über das Schloss-Symbol unten in der Seitenleiste.',
+        'Neu laden (F5) lässt den Tresor entsperrt. Ein neuer Tab, das Schließen des Tabs und das Abmelden verlangen das Masterpasswort erneut.',
         'Unter [Mein Konto](/account) sehen Sie alle angemeldeten Browser und Browser-Erweiterungen. Unbekannte Sitzungen melden Sie dort ab und ändern dann Ihr Masterpasswort.',
         'Manche Aktionen sind sicherheitskritisch. Bastion fragt dann erneut nach dem Masterpasswort; die Bestätigung gilt fünf Minuten.',
       ] },
@@ -160,6 +161,8 @@ export const articlesDe: Article[] = [
         'Ausgefüllt wird nur auf Klick oder mit Strg+Umschalt+L, und nur auf der passenden Domain über HTTPS.',
         'Die Erweiterung kann suchen, anzeigen und kopieren. Bearbeitet wird in der Web-App.',
         'Sie sperrt sich nach Inaktivität, beim Sperren des Rechners und beim Browser-Neustart.',
+        'Suche und zuletzt geöffneter Eintrag bleiben bis zum Browser-Neustart erhalten, auch wenn Sie das Fenster schließen.',
+        'System-Admins wechseln den Tenant über den Namen im Kopf der Erweiterung.',
         'Jede angemeldete Erweiterung sehen und widerrufen Sie unter [Mein Konto](/account).',
       ] },
       { p: 'Edge fragt beim ersten Mal, ob Erweiterungen aus anderen Stores erlaubt werden sollen. Die Firefox-Version folgt.' },

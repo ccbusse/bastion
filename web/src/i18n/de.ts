@@ -1127,6 +1127,8 @@ export const de = {
     requireMfaHint: 'Dringend empfohlen (BSI ORP.4.A21).',
     autoLock: 'Automatische Sperre (Minuten)',
     autoLockHint: 'Der Tresor wird nach dieser Zeit ohne Aktivität gesperrt und die Schlüssel werden aus dem Speicher entfernt.',
+    extensionAutoLock: 'Automatische Sperre der Browser-Erweiterung (Minuten)',
+    extensionAutoLockHint: 'Jede Bedienung der Erweiterung verlängert die Zeit. Solange sie entsperrt ist, bleibt auch ihre Anmeldung bestehen. Beim Sperren des Rechners sperrt sie sich sofort.',
   },
   trust: {
     pinTitle: 'Organisationsschlüssel bestätigen',
