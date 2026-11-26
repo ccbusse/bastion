@@ -1,6 +1,6 @@
 {
   "name": "bastion-web",
-  "version": "2.6.1",
+  "version": "2.7.0",
   "description": "Bastion password vault - web client",
   "scripts": {
     "dev": "vite",

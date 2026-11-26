@@ -7,6 +7,8 @@ Neue Einträge kommen unter *Unveröffentlicht*; `scripts/release.sh X.Y.Z` mach
 
 ## [Unveröffentlicht]
 
+## [2.7.0] – 2026-11-26
+
 ### Neu
 - Ordnerschlüssel werden automatisch erneuert: direkt, wenn ein Manager jemandem Rechte entzieht oder einen Benutzer deaktiviert bzw. löscht, und sonst bei der nächsten Anmeldung eines Managers des Ordners. Ein Hinweis zeigt, welche Ordner erneuert wurden. Ordner mit nicht lesbaren Einträgen werden nie automatisch erneuert und bleiben zur Einzelentscheidung markiert.
 
