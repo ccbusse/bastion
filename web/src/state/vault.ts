@@ -227,6 +227,13 @@ export interface MaintenanceResult {
   /** Ordner, deren Schlüssel ohne gültigen Herkunftsnachweis vorliegen und deshalb nicht verwendet werden */
   untrustedKeys: number;
   trust: TrustState | null;
+  /** Automatisch erneuerte bzw. wegen nicht lesbarer Einträge übersprungene Ordner (Pfade) */
+  rotation?: RotationResult;
+}
+
+export interface RotationResult {
+  rotated: string[];
+  skipped: string[];
 }
 
 /**
@@ -265,8 +272,39 @@ async function runTenantMaintenance(info: SessionInfo, keys: VaultKeys): Promise
   if (!trust.mismatch) trust.anchor = await attestLegacyFolderKeys(info, keys, pinned).catch(() => pinned);
   await upgradeLegacyFolders(info, keys).catch(() => undefined);
   const shared = await distributePendingKeys(info, keys);
+  // 7. Zur Erneuerung markierte Ordner, die der Benutzer verwaltet, gleich mit erneuern (nicht bei abweichenden Tenant-Schlüsseln)
+  const rotation = trust.mismatch ? undefined : await rotateRecommendedFolders(info, keys).catch(() => undefined);
   await loadFolderKeys(info, keys).catch(() => undefined);
-  return { shared, needsAnchor: false, anchorMismatch: trust.mismatch, untrustedKeys: untrustedFolderKeyCount(keys), trust };
+  return { shared, needsAnchor: false, anchorMismatch: trust.mismatch, untrustedKeys: untrustedFolderKeyCount(keys), trust, rotation };
+}
+
+/**
+ * Erneuert die Schlüssel aller Ordner mit Erneuerungs-Empfehlung, die der Benutzer verwaltet und deren Schlüssel er hält.
+ * Der Server kann das nicht selbst (er kennt keine Ordnerschlüssel), deshalb übernimmt es der Browser eines Managers:
+ * nach dem Entsperren und direkt nachdem er jemandem Rechte entzogen hat.
+ * Ordner mit nicht lesbaren Einträgen werden nie automatisch erneuert (das braucht eine Entscheidung), andere Fehler
+ * (z. B. gleichzeitige Erneuerung durch einen anderen Manager) werden beim nächsten Mal erneut versucht.
+ */
+export async function rotateRecommendedFolders(info: SessionInfo, keys: VaultKeys): Promise<RotationResult> {
+  const result: RotationResult = { rotated: [], skipped: [] };
+  if (!info.tenant) return result;
+  const structure = await get<StructureInfo>('/structure');
+  const due = structure.departments.flatMap((d) => d.folders).filter((f) => f.keyRotationRecommended && f.hasKey && f.permissions.includes('vault.manage'));
+  for (const f of due) {
+    try {
+      await rotateFolderKey(info, keys, f.id);
+      result.rotated.push(f.path);
+    } catch (e) {
+      if (e instanceof UnreadableItemsError) result.skipped.push(f.path);
+    }
+  }
+  return result;
+}
+
+/** Nach Rechteänderungen: Schlüssel an neu Berechtigte verteilen und markierte Ordner gleich erneuern. */
+export async function afterAccessChange(info: SessionInfo, keys: VaultKeys): Promise<RotationResult> {
+  await distributePendingKeys(info, keys).catch(() => 0);
+  return rotateRecommendedFolders(info, keys).catch(() => ({ rotated: [], skipped: [] }));
 }
 
 /**

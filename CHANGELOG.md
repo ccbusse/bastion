@@ -7,6 +7,19 @@ Neue Einträge kommen unter *Unveröffentlicht*; `scripts/release.sh X.Y.Z` mach
 
 ## [Unveröffentlicht]
 
+### Neu
+- Ordnerschlüssel werden automatisch erneuert: direkt, wenn ein Manager jemandem Rechte entzieht oder einen Benutzer deaktiviert bzw. löscht, und sonst bei der nächsten Anmeldung eines Managers des Ordners. Ein Hinweis zeigt, welche Ordner erneuert wurden. Ordner mit nicht lesbaren Einträgen werden nie automatisch erneuert und bleiben zur Einzelentscheidung markiert.
+
+### Geändert
+- Rechte und Rollen klarer gegliedert: **Zugriffsstufen** (Betrachter, Leser, Bearbeiter, Manager) regeln den Zugriff auf Einträge je Ordner, Abteilung oder für alle Abteilungen; **Verwaltungsrollen** (Tenant-Administrator, Benutzerverwaltung, Auditor, eigene Rollen) regeln die Verwaltung und gelten tenantweit.
+  - „Rollen & Rechte“ zeigt die Stufen als Übersicht, was jede Stufe darf, und darunter die Verwaltungsrollen.
+  - Beim Benutzer sind Zugriff und Verwaltung getrennte Blöcke; „Gesamter Tenant“ heißt bei Zugriffsstufen jetzt „Alle Abteilungen“.
+  - Unter „Abteilungen & Ordner“ wird die Stufe per Kachel mit Kurzbeschreibung gewählt.
+- Eigene Rollen enthalten nur noch Verwaltungsrechte. Zugriff auf Einträge gibt es ausschließlich über die Zugriffsstufen.
+
+### Hinweise zum Update
+- Bestehende eigene Rollen mit Tresorrechten funktionieren unverändert weiter und sind unter „Rollen & Rechte“ als veraltet markiert. Neue Tresorrechte lassen sich ihnen nicht mehr hinzufügen. Empfehlung: den betroffenen Benutzern stattdessen eine Zugriffsstufe geben und die Rolle danach auf Verwaltungsrechte beschränken oder löschen.
+
 ## [2.6.1] – 2026-11-25
 
 ### Neu

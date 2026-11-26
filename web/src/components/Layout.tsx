@@ -38,6 +38,7 @@ import { checklistProgress, setOnboarding, TourContext, useChecklist } from '../
 import { Tour } from './Tour';
 import { MaintenanceResult, runKeyMaintenance, useStructure } from '../state/vault';
 import { TrustAnchorBanner } from './TrustAnchor';
+import { RotationNotice } from './RotationNotice';
 import { LanguageSwitch } from './LanguageSwitch';
 import { ThemeToggle } from './ThemeToggle';
 import { useTheme } from '../lib/theme';
@@ -321,12 +322,14 @@ export function Layout() {
   // Schlüsselpflege nach dem Entsperren (Tenant-Init, Vertrauensanker, Recovery-Hinterlegung, Schlüsselverteilung)
   const [maintenance, setMaintenance] = useState<MaintenanceResult | null>(null);
   const [maintenanceRun, setMaintenanceRun] = useState(0);
+  const [showRotation, setShowRotation] = useState(true);
   useEffect(() => {
     let alive = true;
     runKeyMaintenance(info, keys)
       .then(async (result) => {
         if (!alive) return;
         setMaintenance(result);
+        setShowRotation(true);
         await refresh();
         await qc.invalidateQueries();
       })
@@ -497,6 +500,7 @@ export function Layout() {
           </header>
           <main className="min-h-0 flex-1 overflow-y-auto">
             <TrustAnchorBanner state={maintenance} onPinned={() => setMaintenanceRun((n) => n + 1)} />
+            {showRotation && <RotationNotice result={maintenance?.rotation} onClose={() => setShowRotation(false)} className="m-4 mb-0" />}
             <Outlet />
           </main>
           <ReauthHost />

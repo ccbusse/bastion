@@ -6,7 +6,7 @@ import { endorseUser } from '../../state/vault';
 import { useState } from 'react';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
-import { Alert, Badge, Button, Checkbox, CopyButton, ErrorAlert, Modal } from '../../components/ui';
+import { Alert, Badge, Button, Checkbox, CopyButton, ErrorAlert, Modal, Select } from '../../components/ui';
 import { get, post } from '../../lib/api';
 import type { InviteResult, Role, ScopeType, StructureInfo, UserRow, UserStatus } from '../../lib/types';
 
@@ -27,6 +27,87 @@ export function roleLabel(t: TFunction, role: { key: string | null; name: string
 
 export function useRoles() {
   return useQuery({ queryKey: ['roles'], queryFn: () => get<Role[]>('/roles') });
+}
+
+/**
+ * Zwei Arten von Rollen:
+ * - Zugriffsstufen (nur Tresorrechte): wer was mit Einträgen darf, je Ordner, Abteilung oder für alle Abteilungen.
+ *   Die vier eingebauten Stufen bauen aufeinander auf (Verwalten ⊃ Bearbeiten ⊃ Lesen ⊃ Übersicht).
+ * - Verwaltungsrollen (enthalten Verwaltungsrechte): wer Bastion verwaltet, immer tenantweit.
+ */
+export const ACCESS_LEVEL_KEYS = ['viewer', 'reader', 'editor', 'manager'] as const;
+export const VAULT_PERMISSIONS = ['vault.view', 'vault.reveal', 'vault.edit', 'vault.manage'] as const;
+
+export const isAccessRole = (r: { permissions: string[] }) => r.permissions.length > 0 && r.permissions.every((p) => p.startsWith('vault.'));
+export const isAdminRole = (r: { permissions: string[] }) => r.permissions.some((p) => p.startsWith('tenant.'));
+/** Eigene Rollen aus der Zeit vor der Trennung, die Tresorrechte enthalten (funktionieren weiter, neue gibt es nicht mehr). */
+export const isLegacyRole = (r: Role) => !r.isSystem && r.permissions.some((p) => p.startsWith('vault.'));
+
+/** Zugriffsstufen in aufsteigender Reihenfolge: eingebaute Stufen, danach ältere eigene Rollen mit nur Tresorrechten. */
+export function accessLevels(roles: Role[] | undefined): Role[] {
+  const all = roles ?? [];
+  const builtin = ACCESS_LEVEL_KEYS.map((k) => all.find((r) => r.key === k)).filter((r): r is Role => !!r);
+  return [...builtin, ...all.filter((r) => !r.isSystem && isAccessRole(r))];
+}
+
+export const adminRoles = (roles: Role[] | undefined) => (roles ?? []).filter(isAdminRole);
+
+/** Höchstes enthaltenes Tresorrecht (die Stufen schließen die darunter ein). */
+export function topVaultPermission(permissions: string[]) {
+  return [...VAULT_PERMISSIONS].reverse().find((p) => permissions.includes(p));
+}
+
+/** Kurzbeschreibung einer Zugriffsstufe bzw. Rolle. */
+export function roleHint(t: TFunction, role: { key: string | null; description?: string }) {
+  return role.key ? t(`builtinRoleHint.${role.key}`, { defaultValue: role.description ?? '' }) : (role.description ?? '');
+}
+
+/** Auswahl einer Zugriffsstufe als Kacheln (mit Kurzbeschreibung), statt eines Dropdowns. */
+export function AccessLevelPicker({ roles, value, onChange }: { roles: Role[]; value: string; onChange: (id: string) => void }) {
+  const { t } = useTranslation();
+  return (
+    <div className="grid gap-2 sm:grid-cols-2" role="radiogroup">
+      {roles.map((r) => {
+        const selected = r.id === value;
+        return (
+          <button
+            key={r.id}
+            type="button"
+            role="radio"
+            aria-checked={selected}
+            onClick={() => onChange(r.id)}
+            className={`rounded-md border p-3 text-left text-sm transition ${selected ? 'border-brand-500 bg-brand-50 ring-1 ring-brand-500' : 'border-slate-200 hover:border-slate-300'}`}
+          >
+            <span className="block font-medium text-slate-900">{roleLabel(t, r)}</span>
+            <span className="block text-xs text-slate-500">{roleHint(t, r)}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Auswahl des Bereichs einer Zugriffsstufe: alle Abteilungen, eine Abteilung oder ein Ordner. */
+export function AccessScopeSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const { t } = useTranslation();
+  const structure = useAdminStructure();
+  return (
+    <Select value={value} onChange={(e) => onChange(e.target.value)}>
+      <option value="TENANT">{t('scope.allDepartments')}</option>
+      {structure.data?.departments.map((d) => (
+        <optgroup key={d.id} label={d.name}>
+          <option value={`DEPARTMENT:${d.id}`}>
+            {t('scope.department')}: {d.name}
+          </option>
+          {d.folders.map((f) => (
+            <option key={f.id} value={`FOLDER:${f.id}`}>
+              {t('scope.folder')}: {f.path}
+            </option>
+          ))}
+        </optgroup>
+      ))}
+    </Select>
+  );
 }
 
 export function useAdminStructure() {

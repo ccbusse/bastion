@@ -5,10 +5,11 @@ import { useTranslation } from 'react-i18next';
 import { Alert, Badge, Button, Card, Checkbox, ConfirmModal, EmptyState, ErrorAlert, Field, IconButton, Input, Modal, PageHeader, Select, Spinner, Textarea, useErrorMessage } from '../../components/ui';
 import { del, get, patch, post } from '../../lib/api';
 import { uuid } from '../../lib/crypto/encoding';
-import type { DepartmentInfo, FolderInfo, Role, ScopeType } from '../../lib/types';
+import type { DepartmentInfo, FolderInfo, ScopeType } from '../../lib/types';
 import { useUnlocked } from '../../state/session';
-import { createFolderKeys, distributePendingKeys, rotateFolderKey, UnreadableItemsError, type UnreadableItem } from '../../state/vault';
-import { roleLabel, useAdminStructure, useRoles } from './shared';
+import { afterAccessChange, createFolderKeys, distributePendingKeys, rotateFolderKey, UnreadableItemsError, type RotationResult, type UnreadableItem } from '../../state/vault';
+import { RotationNotice } from '../../components/RotationNotice';
+import { AccessLevelPicker, accessLevels, roleLabel, useAdminStructure, useRoles } from './shared';
 
 type Editing =
   | { kind: 'dept'; dept?: DepartmentInfo }
@@ -154,14 +155,18 @@ function PermissionsModal({ scopeType, id, title, onClose }: { scopeType: ScopeT
   const rows = useQuery({ queryKey: ['assignments', scopeType, id], queryFn: () => get<AssignmentRow[]>(`/assignments?scopeType=${scopeType}&${param}`) });
   const directory = useQuery({ queryKey: ['directory'], queryFn: () => get<{ id: string; name: string; email: string }[]>('/users/directory') });
   const roles = useRoles();
-  const vaultRoles = (roles.data ?? []).filter((r: Role) => r.permissions.every((p) => p.startsWith('vault.')));
+  const levels = accessLevels(roles.data);
   const [userId, setUserId] = useState('');
   const [roleId, setRoleId] = useState('');
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
+  const [rotation, setRotation] = useState<RotationResult | null>(null);
 
-  const after = async () => {
-    await distributePendingKeys(info, keys).catch(() => 0);
+  // Nach jeder Änderung: Schlüssel an neu Berechtigte verteilen; nach einem Entzug betroffene Ordner gleich erneuern
+  // Übersprungene Ordner nur nach einem Entzug melden, sonst stünde der Hinweis bei jeder Freigabe erneut da
+  const after = async (revoked = false) => {
+    const r = await afterAccessChange(info, keys);
+    setRotation(revoked ? r : { ...r, skipped: [] });
     await Promise.all([['assignments', scopeType, id], ['structure'], ['items'], ['users']].map((k) => qc.invalidateQueries({ queryKey: k })));
   };
 
@@ -169,6 +174,7 @@ function PermissionsModal({ scopeType, id, title, onClose }: { scopeType: ScopeT
     <Modal open onClose={onClose} title={t('structure.permissionsOf', { name: title })} size="lg" footer={<Button onClick={onClose}>{t('common.done')}</Button>}>
       <div className="space-y-5">
         <ErrorAlert error={error} />
+        <RotationNotice result={rotation} />
         {rows.isLoading ? (
           <Spinner />
         ) : rows.error ? (
@@ -195,7 +201,7 @@ function PermissionsModal({ scopeType, id, title, onClose }: { scopeType: ScopeT
                       setError(null);
                       try {
                         await del(`/assignments/${a.id}`);
-                        await after();
+                        await after(true);
                       } catch (e) {
                         setError(e);
                       }
@@ -213,28 +219,19 @@ function PermissionsModal({ scopeType, id, title, onClose }: { scopeType: ScopeT
         )}
         <div className="space-y-3 rounded-md bg-slate-50 p-4">
           <p className="text-sm font-medium text-slate-700">{t('structure.grantAccess')}</p>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field label={t('structure.user')}>
-              <Select value={userId} onChange={(e) => setUserId(e.target.value)}>
-                <option value="">{t('common.choose')}</option>
-                {directory.data?.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.name ? `${u.name} (${u.email})` : u.email}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label={t('users.role')}>
-              <Select value={roleId} onChange={(e) => setRoleId(e.target.value)}>
-                <option value="">{t('common.choose')}</option>
-                {vaultRoles.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {roleLabel(t, r)}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-          </div>
+          <Field label={t('structure.user')}>
+            <Select value={userId} onChange={(e) => setUserId(e.target.value)}>
+              <option value="">{t('common.choose')}</option>
+              {directory.data?.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.name ? `${u.name} (${u.email})` : u.email}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label={t('access.level')}>
+            <AccessLevelPicker roles={levels} value={roleId} onChange={setRoleId} />
+          </Field>
           <Button
             size="sm"
             icon={<Plus className="h-4 w-4" />}
