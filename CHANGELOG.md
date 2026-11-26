@@ -7,6 +7,8 @@ Neue Einträge kommen unter *Unveröffentlicht*; `scripts/release.sh X.Y.Z` mach
 
 ## [Unveröffentlicht]
 
+## [2.8.0] – 2026-11-26
+
 ### Neu
 - Web-App: Neu laden (F5) sperrt den Tresor nicht mehr. Die Schlüssel liegen dafür verschlüsselt im Speicher des Tabs; der Schlüssel dazu existiert nur auf dem Server und gehört zur Sitzung. Ein neuer Tab, Schließen des Tabs, Sperren, Abmelden und Ablauf der Sperrzeit verlangen weiterhin das Masterpasswort.
 - Browser-Erweiterung: System-Admins wechseln den Tenant über den Namen im Kopf des Popups.
