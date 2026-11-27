@@ -416,8 +416,11 @@ export const de = {
     deleteSourceHint: 'Löschen Sie die Importdatei nach dem Import sicher – sie enthält Ihre Passwörter im Klartext.',
     exportTitle: 'Verschlüsselter Export',
     exportDescription: 'Exportiert Einträge als mit Argon2id und AES-256-GCM verschlüsselte JSON-Datei. Ohne Export-Passwort ist die Datei nicht lesbar.',
-    includeFolders: 'Auch Unternehmensordner exportieren',
-    includeFoldersHint: 'Nur Ordner, in denen Sie Passwörter sehen dürfen. Beachten Sie die Richtlinien Ihrer Organisation.',
+    exportSelection: 'Was soll exportiert werden?',
+    selectAll: 'Alle',
+    selectNone: 'Keine',
+    nothingToExport: 'Es gibt keine Einträge, die Sie exportieren dürfen.',
+    includeFoldersHint: 'Angezeigt werden nur Ordner, in denen Sie Passwörter sehen dürfen. Ein Haken an einer Abteilung oder einem Ordner wählt alle Unterordner mit aus; einzelne lassen sich wieder abwählen. Beachten Sie die Richtlinien Ihrer Organisation.',
     export: '{{count}} Einträge exportieren',
   },
   account: {

@@ -7,6 +7,12 @@ Neue Einträge kommen unter *Unveröffentlicht*; `scripts/release.sh X.Y.Z` mach
 
 ## [Unveröffentlicht]
 
+### Neu
+- Export: Persönlicher Tresor, Abteilungen, Ordner und Unterordner lassen sich in einer Baumansicht einzeln an- und abwählen, mit Anzahl der Einträge je Zweig. Ein Haken an einer Abteilung oder einem Ordner nimmt alle Unterordner mit. Vorausgewählt ist wie bisher nur der persönliche Tresor.
+
+### Abhängigkeiten
+- Npgsql.EntityFrameworkCore.PostgreSQL 10.0.4 (mit EF Core 10.0.15), QRCoder 1.9.0, @tanstack/react-query 5.108.1, i18next 27.2.2, react-i18next 18.0.3, react-router 8.5.2, lucide-react 1.76.0, aktuelles Go-Basis-Image für den Build von Caddy.
+
 ## [2.9.0] – 2026-11-27
 
 ### Neu

@@ -418,8 +418,11 @@ export const en: Translation = {
     deleteSourceHint: 'Securely delete the import file afterwards – it contains your passwords in plain text.',
     exportTitle: 'Encrypted export',
     exportDescription: 'Exports items as a JSON file encrypted with Argon2id and AES-256-GCM. It cannot be read without the export password.',
-    includeFolders: 'Also export organization folders',
-    includeFoldersHint: 'Only folders where you may view passwords. Respect your organization’s policies.',
+    exportSelection: 'What should be exported?',
+    selectAll: 'All',
+    selectNone: 'None',
+    nothingToExport: 'There are no entries you are allowed to export.',
+    includeFoldersHint: 'Only folders where you may view passwords are shown. Checking a department or folder includes all its subfolders; you can uncheck individual ones again. Respect your organization’s policies.',
     export: 'Export {{count}} items',
   },
   account: {
