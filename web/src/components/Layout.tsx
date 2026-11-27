@@ -110,6 +110,7 @@ function FolderNav({ folders, current }: { folders: FolderInfo[]; current: strin
             {canView ? (
               <NavLink
                 to={`/vault?f=${f.id}`}
+                onClick={() => withChildren.has(f.id) && setOpen((o) => ({ ...o, [f.id]: true }))}
                 className={cx(
                   'flex min-w-0 flex-1 items-center gap-2.5 rounded-md px-1.5 py-1.5 text-sm transition-colors',
                   current === f.id ? 'bg-white/10 font-medium text-white' : 'text-brand-200 hover:bg-white/5 hover:text-white',
@@ -119,7 +120,12 @@ function FolderNav({ folders, current }: { folders: FolderInfo[]; current: strin
                 {label}
               </NavLink>
             ) : (
-              <span className="flex min-w-0 flex-1 items-center gap-2.5 px-1.5 py-1.5 text-sm text-brand-400">{label}</span>
+              <span
+                onClick={() => withChildren.has(f.id) && setOpen((o) => ({ ...o, [f.id]: true }))}
+                className="flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 px-1.5 py-1.5 text-sm text-brand-400"
+              >
+                {label}
+              </span>
             )}
           </div>
         );

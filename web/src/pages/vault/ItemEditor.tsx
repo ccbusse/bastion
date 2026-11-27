@@ -1,11 +1,12 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { Wand2 } from 'lucide-react';
+import { RefreshCw, Wand2 } from 'lucide-react';
 import { FormEvent, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { GeneratorOptionsFields } from '../../components/GeneratorOptions';
 import { Alert, Button, ErrorAlert, Field, IconButton, Input, Modal, PasswordInput, Select, Textarea } from '../../components/ui';
 import { post, put } from '../../lib/api';
 import { uuid } from '../../lib/crypto/encoding';
-import { DEFAULT_GENERATOR, generatePassword } from '../../lib/generator';
+import { DEFAULT_GENERATOR, generatePassword, GeneratorOptions } from '../../lib/generator';
 import { encryptItem, ITEM_FIELDS, ITEM_TYPES, splitFields } from '../../lib/items';
 import type { DecryptedItem, FieldValues, ItemType } from '../../lib/types';
 import { useUnlocked } from '../../state/session';
@@ -41,8 +42,15 @@ export function ItemEditor({ item, defaultTarget, onClose, onSaved }: { item?: D
   const [target, setTarget] = useState(initialTarget);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
+  // Generator-Optionen direkt am Passwortfeld; genFor ist das Feld, unter dem sie aufgeklappt sind
+  const [genFor, setGenFor] = useState<string | null>(null);
+  const [genOpts, setGenOpts] = useState<GeneratorOptions>(DEFAULT_GENERATOR);
 
   const set = (k: string, v: string) => setValues((s) => ({ ...s, [k]: v }));
+  const generate = (k: string, o: GeneratorOptions = genOpts) => {
+    set(k, generatePassword(o));
+    setGenFor(k);
+  };
   // Unternehmenseinträge dürfen nicht in den persönlichen Tresor verschoben werden
   const targetOptions = item && !item.personal ? targets.filter((x) => x.value !== 'personal') : targets;
   const currentMissing = item && !targetOptions.some((x) => x.value === initialTarget);
@@ -131,12 +139,35 @@ export function ItemEditor({ item, defaultTarget, onClose, onSaved }: { item?: D
                   autoComplete="new-password"
                   extra={
                     f.key === 'password' || f.key === 'apiSecret' ? (
-                      <IconButton label={t('nav.generator')} onClick={() => set(f.key, generatePassword(DEFAULT_GENERATOR))}>
+                      <IconButton label={t('nav.generator')} aria-expanded={genFor === f.key} onClick={() => generate(f.key)}>
                         <Wand2 className="h-4 w-4" />
                       </IconButton>
                     ) : undefined
                   }
                 />
+                {genFor === f.key && (
+                  <div className="mt-2 space-y-3 rounded-md border border-slate-200 bg-slate-50 p-3">
+                    <div className="flex items-center gap-2">
+                      <p className="min-w-0 flex-1 break-all font-mono text-sm text-slate-900">{v || '–'}</p>
+                      <Button variant="ghost" size="sm" onClick={() => generate(f.key)} icon={<RefreshCw className="h-4 w-4" />}>
+                        {t('generator.regenerate')}
+                      </Button>
+                    </div>
+                    <GeneratorOptionsFields
+                      compact
+                      value={genOpts}
+                      onChange={(o) => {
+                        setGenOpts(o);
+                        generate(f.key, o);
+                      }}
+                    />
+                    <div className="flex justify-end">
+                      <Button variant="ghost" size="sm" onClick={() => setGenFor(null)}>
+                        {t('generator.done')}
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </Field>
             );
           return (

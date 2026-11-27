@@ -69,7 +69,7 @@ export const articlesDe: Article[] = [
       { steps: [
         'Wählen Sie links den Ordner, in den der Eintrag gehört, oder **Persönlicher Tresor**.',
         'Klicken Sie auf **Neuer Eintrag** und wählen Sie den Typ: Zugangsdaten, sichere Notiz, Zahlungskarte, Bankkonto, SSH-Schlüssel oder API-Schlüssel.',
-        'Füllen Sie die Felder aus. Für sichere Passwörter gibt es den [Passwortgenerator](/tools/generator).',
+        'Füllen Sie die Felder aus. Der Zauberstab im Passwortfeld erzeugt ein sicheres Passwort; Länge und Zeichenarten (z. B. ohne Sonderzeichen) lassen sich darunter direkt einstellen. Alternativ gibt es den [Passwortgenerator](/tools/generator).',
         'Speichern. Alle Felder werden vorher in Ihrem Browser verschlüsselt.',
       ] },
       { tip: 'Im Feld **2FA-Secret (TOTP)** können Sie das Secret oder die otpauth://-Adresse eines Dienstes hinterlegen. Bastion zeigt dann die aktuellen 2FA-Codes an, wie eine Authenticator-App.' },

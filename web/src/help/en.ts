@@ -69,7 +69,7 @@ export const articlesEn: Article[] = [
       { steps: [
         'On the left, choose the folder the item belongs to, or **Personal vault**.',
         'Click **New item** and pick the type: login, secure note, payment card, bank account, SSH key or API key.',
-        'Fill in the fields. Use the [password generator](/tools/generator) for strong passwords.',
+        'Fill in the fields. The magic wand in the password field creates a strong password; length and character sets (e.g. no symbols) can be adjusted right below it. There is also the [password generator](/tools/generator).',
         'Save. All fields are encrypted in your browser first.',
       ] },
       { tip: 'In the **2FA secret (TOTP)** field you can store a service’s secret or otpauth:// address. Bastion then shows the current 2FA codes, just like an authenticator app.' },

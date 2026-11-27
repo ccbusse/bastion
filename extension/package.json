@@ -8,7 +8,8 @@
     "icons": "node scripts/icons.mjs",
     "build": "tsc -b && node scripts/icons.mjs && vite build",
     "typecheck": "tsc -b",
-    "build:store": "node scripts/store-zip.mjs"
+    "build:store": "node scripts/store-zip.mjs",
+    "build:firefox": "node scripts/store-zip.mjs --firefox"
   },
   "license": "AGPL-3.0-or-later",
   "dependencies": {

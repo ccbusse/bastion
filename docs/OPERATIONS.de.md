@@ -233,3 +233,5 @@ cd extension && npm install && npm run build
 
 Danach `extension/dist` in `chrome://extensions` mit „Entpackte Erweiterung laden“ einbinden (Entwicklermodus).
 
+Firefox (ab 140): `npm run build:firefox` erzeugt das Paket für addons.mozilla.org und das Quellcode-Archiv für die Prüfung (Bauanleitung: `extension/BUILD-FIREFOX.md`). Zum Testen `extension/dist/manifest.json` unter `about:debugging` → „Temporäres Add-on laden“ einbinden.
+

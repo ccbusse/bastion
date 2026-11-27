@@ -233,3 +233,5 @@ cd extension && npm install && npm run build
 
 Then load `extension/dist` in `chrome://extensions` with "Load unpacked" (developer mode).
 
+Firefox (140+): `npm run build:firefox` creates the package for addons.mozilla.org and the source archive for Mozilla's review (build instructions: `extension/BUILD-FIREFOX.md`). For testing, load `extension/dist/manifest.json` via `about:debugging` → "Load Temporary Add-on".
+
