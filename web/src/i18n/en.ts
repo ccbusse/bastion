@@ -350,6 +350,7 @@ export const en: Translation = {
     title: 'Password generator',
     description: 'Generates cryptographically secure random passwords in your browser (Web Crypto API, no modulo bias).',
     regenerate: 'Regenerate',
+    done: 'Close options',
     length: 'Length',
     upper: 'Uppercase (A–Z)',
     lower: 'Lowercase (a–z)',

@@ -348,6 +348,7 @@ export const de = {
     title: 'Passwortgenerator',
     description: 'Erzeugt kryptografisch sichere Zufallspasswörter direkt im Browser (Web Crypto API, ohne Modulo-Bias).',
     regenerate: 'Neu erzeugen',
+    done: 'Optionen schließen',
     length: 'Länge',
     upper: 'Großbuchstaben (A–Z)',
     lower: 'Kleinbuchstaben (a–z)',
