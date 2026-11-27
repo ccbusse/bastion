@@ -7,6 +7,8 @@ Neue Einträge kommen unter *Unveröffentlicht*; `scripts/release.sh X.Y.Z` mach
 
 ## [Unveröffentlicht]
 
+## [2.9.0] – 2026-11-27
+
 ### Neu
 - Eintrag anlegen und bearbeiten: Der Zauberstab im Passwortfeld klappt die Optionen des Passwortgenerators auf (Länge, Groß- und Kleinbuchstaben, Ziffern, Sonderzeichen, verwechselbare Zeichen). Jede Änderung erzeugt das Passwort sofort neu.
 - Browser-Erweiterung für Firefox (ab Version 140): `npm run build:firefox` baut das Paket für addons.mozilla.org samt Quellcode-Archiv für die Prüfung durch Mozilla. Das Popup öffnet dort mit Alt+Umschalt+B, da Strg+Umschalt+Y in Firefox belegt ist.

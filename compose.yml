@@ -35,7 +35,7 @@ services:
   # Einmaliger Dienst: Migrationen mit dem Eigentümer-Konto, danach Einrichtung des eingeschränkten App-Kontos.
   # Das Eigentümer-Passwort gelangt so nie in den laufenden Anwendungsprozess.
   migrate:
-    image: ${BASTION_REGISTRY:-ghcr.io/ccbusse}/bastion:${BASTION_VERSION:-2.8.0}
+    image: ${BASTION_REGISTRY:-ghcr.io/ccbusse}/bastion:${BASTION_VERSION:-2.9.0}
     restart: "no"
     command: ["/app/Bastion.Server", "migrate"]
     depends_on:
@@ -53,7 +53,7 @@ services:
     pids_limit: 200
 
   bastion:
-    image: ${BASTION_REGISTRY:-ghcr.io/ccbusse}/bastion:${BASTION_VERSION:-2.8.0}
+    image: ${BASTION_REGISTRY:-ghcr.io/ccbusse}/bastion:${BASTION_VERSION:-2.9.0}
     restart: unless-stopped
     depends_on:
       migrate:
@@ -86,7 +86,7 @@ services:
   # Der Dienst kann seine eigenen Backups nicht entschlüsseln; der private Schlüssel liegt offline beim Betreiber.
   # Befehle: docker compose run --rm backup list | now | keygen  ·  Wiederherstellung: https://github.com/ccbusse/bastion/blob/master/docs/OPERATIONS.de.md#datenbank-backup
   backup:
-    image: ${BASTION_REGISTRY:-ghcr.io/ccbusse}/bastion-backup:${BASTION_VERSION:-2.8.0}
+    image: ${BASTION_REGISTRY:-ghcr.io/ccbusse}/bastion-backup:${BASTION_VERSION:-2.9.0}
     restart: unless-stopped
     init: true
     depends_on:
@@ -114,7 +114,7 @@ services:
 
   caddy:
     # Eigenes Image: offizielles Caddy-Programm auf Debian 13, läuft ohne Root-Rechte (siehe caddy/Dockerfile)
-    image: ${BASTION_REGISTRY:-ghcr.io/ccbusse}/bastion-caddy:${BASTION_VERSION:-2.8.0}
+    image: ${BASTION_REGISTRY:-ghcr.io/ccbusse}/bastion-caddy:${BASTION_VERSION:-2.9.0}
     restart: unless-stopped
     depends_on: [bastion]
     read_only: true

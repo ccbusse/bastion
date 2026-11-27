@@ -1,6 +1,6 @@
 {
   "name": "bastion-extension",
-  "version": "2.8.0",
+  "version": "2.9.0",
   "private": true,
   "description": "Bastion browser extension (read-only vault access and autofill)",
   "type": "module",
