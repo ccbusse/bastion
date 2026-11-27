@@ -60,7 +60,11 @@ export function clearSession() {
   return chrome.storage.session.clear();
 }
 
-/** Sitzungsspeicher nur für Erweiterungsseiten und Service Worker freigeben, nie für Content-Scripts. */
-export function restrictSessionStorage() {
-  return chrome.storage.session.setAccessLevel({ accessLevel: 'TRUSTED_CONTEXTS' });
+/**
+ * Sitzungsspeicher nur für Erweiterungsseiten und Service Worker freigeben, nie für Content-Scripts.
+ * Firefox kennt setAccessLevel nicht; dort ist storage.session ohnehin nur für Erweiterungsseiten erreichbar.
+ */
+export async function restrictSessionStorage() {
+  if (__FIREFOX__) return;
+  await chrome.storage.session.setAccessLevel({ accessLevel: 'TRUSTED_CONTEXTS' });
 }

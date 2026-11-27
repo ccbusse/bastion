@@ -38,8 +38,22 @@ chrome.runtime.onMessage.addListener((msg: { type?: string }, sender, sendRespon
   return false;
 });
 
-/** Zwischenablage über ein unsichtbares Offscreen-Dokument leeren (Service Worker haben keinen Zugriff darauf). */
+/**
+ * Zwischenablage leeren. Chrome: über ein unsichtbares Offscreen-Dokument (Service Worker haben keinen Zugriff darauf).
+ * Firefox: die Hintergrundseite ist ein echtes Dokument und darf mit clipboardWrite direkt schreiben.
+ */
 async function clearClipboard() {
+  if (__FIREFOX__) {
+    await navigator.clipboard.writeText('').catch(() => {
+      const onCopy = (e: ClipboardEvent) => {
+        e.preventDefault();
+        e.clipboardData?.setData('text/plain', '');
+      };
+      document.addEventListener('copy', onCopy, { once: true });
+      document.execCommand('copy');
+    });
+    return;
+  }
   const url = chrome.runtime.getURL('offscreen.html');
   const contexts = await chrome.runtime.getContexts({ contextTypes: [chrome.runtime.ContextType.OFFSCREEN_DOCUMENT], documentUrls: [url] });
   if (!contexts.length) {
