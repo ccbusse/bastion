@@ -7,6 +7,8 @@ Neue Einträge kommen unter *Unveröffentlicht*; `scripts/release.sh X.Y.Z` mach
 
 ## [Unveröffentlicht]
 
+## [2.10.0] – 2026-11-27
+
 ### Neu
 - Export: Persönlicher Tresor, Abteilungen, Ordner und Unterordner lassen sich in einer Baumansicht einzeln an- und abwählen, mit Anzahl der Einträge je Zweig. Ein Haken an einer Abteilung oder einem Ordner nimmt alle Unterordner mit. Vorausgewählt ist wie bisher nur der persönliche Tresor.
 
