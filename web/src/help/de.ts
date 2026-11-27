@@ -204,7 +204,7 @@ export const articlesDe: Article[] = [
       ] },
       { warn: 'Importdateien enthalten Passwörter im Klartext. Löschen Sie sie nach dem Import sicher.' },
       { h: 'Verschlüsselter Export' },
-      { p: 'Der Export erzeugt eine mit einem Export-Passwort verschlüsselte Datei (Argon2id und AES-256-GCM). Unternehmensordner werden nur exportiert, wenn Sie das ausdrücklich wählen und dort Passwörter sehen dürfen. Exporte werden protokolliert; beachten Sie die Richtlinien Ihrer Organisation.' },
+      { p: 'Der Export erzeugt eine mit einem Export-Passwort verschlüsselte Datei (Argon2id und AES-256-GCM). Was hinein soll, wählen Sie in einer Baumansicht: den persönlichen Tresor, ganze Abteilungen oder einzelne Ordner und Unterordner. Vorausgewählt ist nur der persönliche Tresor; Unternehmensordner erscheinen nur, wenn Sie dort Passwörter sehen dürfen. Exporte werden protokolliert; beachten Sie die Richtlinien Ihrer Organisation.' },
       { tip: 'Der persönliche Export ist kein Ersatz für die Backups der Installation, siehe [Welches Backup wofür?](help:backups-overview).' },
     ],
     related: ['backups-overview'],

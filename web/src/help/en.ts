@@ -204,7 +204,7 @@ export const articlesEn: Article[] = [
       ] },
       { warn: 'Import files contain passwords in plain text. Delete them securely after importing.' },
       { h: 'Encrypted export' },
-      { p: 'The export creates a file encrypted with an export password (Argon2id and AES-256-GCM). Company folders are only exported if you explicitly choose so and may reveal passwords there. Exports are logged; follow your organization’s policies.' },
+      { p: 'The export creates a file encrypted with an export password (Argon2id and AES-256-GCM). You choose what goes in using a tree: your personal vault, whole departments or individual folders and subfolders. Only the personal vault is preselected; company folders only appear if you may reveal passwords there. Exports are logged; follow your organization’s policies.' },
       { tip: 'A personal export does not replace the installation’s backups, see [Which backup for what?](help:backups-overview).' },
     ],
     related: ['backups-overview'],

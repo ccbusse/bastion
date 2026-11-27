@@ -1,8 +1,8 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { Building2, Download, Folder, Upload } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { Building2, Download, Folder, Upload, User } from 'lucide-react';
+import { ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Alert, Badge, Button, Card, Checkbox, cx, ErrorAlert, Field, FileDrop, PageHeader, PasswordInput, Select } from '../../components/ui';
+import { Alert, Badge, Button, Card, cx, ErrorAlert, Field, FileDrop, PageHeader, PasswordInput, Select } from '../../components/ui';
 import { MasterPasswordFields } from '../../components/MasterPasswordFields';
 import { post } from '../../lib/api';
 import { uuid } from '../../lib/crypto/encoding';
@@ -271,11 +271,48 @@ function ImportCard() {
   );
 }
 
+/** Checkbox mit drittem Zustand „teilweise ausgewählt“ für die Baumauswahl im Export. */
+function TreeCheckbox({
+  checked,
+  indeterminate,
+  onChange,
+  children,
+  count,
+  depth = 0,
+  strong,
+}: {
+  checked: boolean;
+  indeterminate?: boolean;
+  onChange: () => void;
+  children: ReactNode;
+  count: number;
+  depth?: number;
+  strong?: boolean;
+}) {
+  const { t } = useTranslation();
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (ref.current) ref.current.indeterminate = !!indeterminate && !checked;
+  }, [indeterminate, checked]);
+  return (
+    <label
+      className={cx('flex cursor-pointer items-center gap-2 py-1.5 pr-3 text-sm hover:bg-slate-50', strong ? 'font-medium text-slate-800' : 'text-slate-700')}
+      style={{ paddingLeft: `${0.75 + depth * 1.1}rem` }}
+    >
+      <input ref={ref} type="checkbox" className="h-4 w-4 shrink-0 rounded border-slate-300 accent-brand-900" checked={checked} onChange={onChange} />
+      {children}
+      <span className="ml-auto shrink-0 text-xs tabular-nums text-slate-500">{t('structure.items', { count })}</span>
+    </label>
+  );
+}
+
 function ExportCard() {
   const { t } = useTranslation();
   const items = useVaultItems();
   const structure = useStructure();
-  const [includeFolders, setIncludeFolders] = useState(false);
+  // Standard: nur der persönliche Tresor; Unternehmensordner werden bewusst einzeln dazugewählt
+  const [personal, setPersonal] = useState(true);
+  const [picked, setPicked] = useState<Set<string>>(() => new Set());
   const [password, setPassword] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
@@ -284,7 +321,61 @@ function ExportCard() {
     for (const d of structure.data?.departments ?? []) for (const f of d.folders) m.set(f.id, `${d.name} / ${f.path}`);
     return m;
   }, [structure.data]);
-  const selection = (items.data ?? []).filter((i) => !i.error && i.secret && (i.personal || includeFolders));
+
+  const exportable = useMemo(() => (items.data ?? []).filter((i) => !i.error && i.secret), [items.data]);
+  const personalCount = exportable.filter((i) => i.personal).length;
+
+  // Baum aus Abteilungen und Ordnern; nur Ordner, die selbst oder in Unterordnern exportierbare Einträge haben.
+  // ids eines Ordners: er selbst und alle sichtbaren Unterordner (ein Haken wählt den ganzen Zweig).
+  const tree = useMemo(() => {
+    const own = new Map<string, number>();
+    for (const i of exportable) if (!i.personal && i.folderId) own.set(i.folderId, (own.get(i.folderId) ?? 0) + 1);
+    return (structure.data?.departments ?? [])
+      .map((d) => {
+        const children = new Map<string | null, string[]>();
+        for (const f of d.folders) children.set(f.parentId, [...(children.get(f.parentId) ?? []), f.id]);
+        const subtree = new Map<string, string[]>();
+        const total = new Map<string, number>();
+        const walk = (id: string): string[] => {
+          const ids = [id, ...(children.get(id) ?? []).flatMap(walk)];
+          subtree.set(id, ids);
+          total.set(id, ids.reduce((n, x) => n + (own.get(x) ?? 0), 0));
+          return ids;
+        };
+        for (const f of d.folders) if (!f.parentId || !d.folders.some((x) => x.id === f.parentId)) walk(f.id);
+        const folders = d.folders.filter((f) => (total.get(f.id) ?? 0) > 0);
+        const visible = new Set(folders.map((f) => f.id));
+        return {
+          id: d.id,
+          name: d.name,
+          folders: folders.map((f) => ({ id: f.id, name: f.name, depth: f.depth, ids: (subtree.get(f.id) ?? [f.id]).filter((x) => visible.has(x)), count: total.get(f.id) ?? 0 })),
+          ids: folders.map((f) => f.id),
+          count: folders.reduce((n, f) => n + (own.get(f.id) ?? 0), 0),
+        };
+      })
+      .filter((d) => d.count > 0);
+  }, [exportable, structure.data]);
+
+  const nodeState = (ids: string[]) => {
+    const n = ids.filter((id) => picked.has(id)).length;
+    return { checked: ids.length > 0 && n === ids.length, indeterminate: n > 0 && n < ids.length };
+  };
+  const toggle = (ids: string[]) =>
+    setPicked((prev) => {
+      const next = new Set(prev);
+      const all = ids.every((id) => next.has(id));
+      for (const id of ids) {
+        if (all) next.delete(id);
+        else next.add(id);
+      }
+      return next;
+    });
+  const selectAll = (on: boolean) => {
+    setPersonal(on);
+    setPicked(new Set(on ? tree.flatMap((d) => d.ids) : []));
+  };
+
+  const selection = exportable.filter((i) => (i.personal ? personal : picked.has(i.folderId!)));
 
   const run = async () => {
     if (!password) return;
@@ -316,7 +407,43 @@ function ExportCard() {
       <div className="space-y-4">
         <p className="text-sm text-slate-600">{t('transfer.exportDescription')}</p>
         <ErrorAlert error={error} />
-        <Checkbox label={t('transfer.includeFolders')} hint={t('transfer.includeFoldersHint')} checked={includeFolders} onChange={setIncludeFolders} />
+        <div className="space-y-2">
+          <div className="flex items-center gap-1">
+            <p className="mr-auto text-sm font-medium text-slate-700">{t('transfer.exportSelection')}</p>
+            <Button variant="ghost" size="sm" onClick={() => selectAll(true)}>
+              {t('transfer.selectAll')}
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => selectAll(false)}>
+              {t('transfer.selectNone')}
+            </Button>
+          </div>
+          <div className="max-h-96 overflow-y-auto rounded-md border border-slate-200">
+            {personalCount > 0 && (
+              <div className="border-b border-slate-100 last:border-0">
+                <TreeCheckbox checked={personal} onChange={() => setPersonal((v) => !v)} count={personalCount} strong>
+                  <User className="h-4 w-4 shrink-0 text-brand-500" />
+                  <span className="truncate">{t('nav.personal')}</span>
+                </TreeCheckbox>
+              </div>
+            )}
+            {tree.map((d) => (
+              <div key={d.id} className="border-b border-slate-100 last:border-0">
+                <TreeCheckbox {...nodeState(d.ids)} onChange={() => toggle(d.ids)} count={d.count} strong>
+                  <Building2 className="h-4 w-4 shrink-0 text-brand-500" />
+                  <span className="truncate">{d.name}</span>
+                </TreeCheckbox>
+                {d.folders.map((f) => (
+                  <TreeCheckbox key={f.id} {...nodeState(f.ids)} onChange={() => toggle(f.ids)} count={f.count} depth={f.depth + 1}>
+                    <Folder className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                    <span className="truncate">{f.name}</span>
+                  </TreeCheckbox>
+                ))}
+              </div>
+            ))}
+            {!personalCount && !tree.length && <p className="px-3 py-2 text-sm text-slate-500">{t('transfer.nothingToExport')}</p>}
+          </div>
+          {tree.length > 0 && <p className="text-xs text-slate-500">{t('transfer.includeFoldersHint')}</p>}
+        </div>
         <MasterPasswordFields onChange={setPassword} label={t('transfer.exportPassword')} />
         <Button onClick={run} loading={busy} disabled={!password || !selection.length} icon={<Download className="h-4 w-4" />}>
           {t('transfer.export', { count: selection.length })}
